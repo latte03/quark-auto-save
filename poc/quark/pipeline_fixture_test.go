@@ -12,7 +12,7 @@ import (
 )
 
 type fixtureDoc struct {
-	MagicRegex map[string]Rule        `json:"magic_regex"`
+	MagicRegex json.RawMessage        `json:"magic_regex"`
 	Tasks      []json.RawMessage      `json:"tasks"`
 	Share      map[string][]ShareFile `json:"share"`
 	Dest       map[string][]ShareFile `json:"dest"`
@@ -168,7 +168,11 @@ func compareFixture(t *testing.T, fixturePath, planPath string) {
 			t.Fatalf("parse task %d: %v", i, err)
 		}
 		api := &fakeAPI{share: fixture.Share, dest: fixture.Dest}
-		runner := NewRunner(api, fixture.MagicRegex)
+		rules, err := ParseRules(fixture.MagicRegex)
+		if err != nil {
+			t.Fatalf("parse fixture rules: %v", err)
+		}
+		runner := NewRunner(api, rules)
 		runner.DryRun = false
 		runner.Out = io.Discard
 		tree, err := runner.DoSaveTask(&task)

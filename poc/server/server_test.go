@@ -174,7 +174,7 @@ func TestConfigViewDefaultsForFreshInstall(t *testing.T) {
 			Cookie   []string                  `json:"cookie"`
 			NextRuns []string                  `json:"next_runs"`
 			Push     map[string]any            `json:"push_config"`
-			Magic    map[string]any            `json:"magic_regex"`
+			Magic    []map[string]any          `json:"magic_regex"`
 			Source   map[string]map[string]any `json:"source"`
 			Plugins  map[string]any            `json:"plugins"`
 		} `json:"data"`
@@ -841,20 +841,22 @@ func TestFileOperationsBlockedWhileRunning(t *testing.T) {
 
 	started := make(chan struct{})
 	release := make(chan struct{})
-	if _, err := instance.runs.Start("占位", true, func(*Run) error {
+	run, err := instance.runs.Start("占位", true, func(*Run) error {
 		close(started)
 		<-release
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	<-started
-	defer close(release)
 
 	response, _ := postJSON(t, client, ts.URL+"/api/files/delete", map[string]any{"path": "/video/a.mp4", "confirm": true})
 	if response.StatusCode != http.StatusConflict {
 		t.Fatalf("delete while running = %d, want 409", response.StatusCode)
 	}
+	close(release)
+	waitRun(t, instance, run.ID)
 }
 
 // ---------- inline task ----------

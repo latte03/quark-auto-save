@@ -51,8 +51,12 @@ func TestLoadConfigPreservesUnknownFields(t *testing.T) {
 	if !task.runWeekSet || len(task.RunWeek) != 2 || task.RunWeek[1] != 3 {
 		t.Fatalf("runweek = %#v", task.RunWeek)
 	}
-	if pattern, replace := task.Pattern, task.Replace; pattern != "$TV" || replace != "" {
-		t.Fatalf("pattern/replace = %q/%q", pattern, replace)
+	// The legacy "pattern is the rule name" form is migrated to a stable id.
+	if task.Pattern != "" || task.MagicID == "" {
+		t.Fatalf("pattern/magic_id = %q/%q", task.Pattern, task.MagicID)
+	}
+	if rule, ok := cfg.RuleByID(task.MagicID); !ok || rule.Name != "$TV" {
+		t.Fatalf("rule for task = %+v", rule)
 	}
 
 	task.ShareURLBan = "分享已失效"

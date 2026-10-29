@@ -12,13 +12,18 @@ import (
 	"github.com/dlclark/regexp2"
 )
 
+// Rule is one named magic-regex preset. The id is stable: tasks reference it,
+// so renaming is always safe.
 type Rule struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
 	Pattern string `json:"pattern"`
 	Replace string `json:"replace"`
 }
 
 type Magic struct {
 	rules    map[string]Rule
+	byID     map[string]Rule
 	cache    map[string]*regexp2.Regexp
 	vars     map[string][]string
 	varOrder []string
@@ -66,22 +71,44 @@ var magicPriority = []string{
 	"上", "中", "下", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "百", "千", "万",
 }
 
-func NewMagic(rules map[string]Rule) *Magic {
+func NewMagic(rules []Rule) *Magic {
 	m := &Magic{
 		rules: make(map[string]Rule, len(rules)),
+		byID:  make(map[string]Rule, len(rules)),
 		cache: map[string]*regexp2.Regexp{},
 		vars:  map[string][]string{},
 		dir:   map[int]string{},
 		now:   time.Now,
 	}
-	for key, rule := range rules {
-		m.rules[key] = rule
+	for _, rule := range rules {
+		if rule.ID != "" {
+			m.byID[rule.ID] = rule
+		}
+		if rule.Name != "" {
+			m.rules[rule.Name] = rule
+		}
 	}
 	for _, item := range magicVarPatterns {
 		m.vars[item.key] = item.patterns
 		m.varOrder = append(m.varOrder, item.key)
 	}
 	return m
+}
+
+// ResolveTask prefers the stable rule id and only falls back to a name or a
+// raw regex for tasks that were never migrated. An id that no longer exists
+// fails closed so a deleted rule cannot turn into "match everything".
+func (m *Magic) ResolveTask(magicID, pattern, replace string) (string, string) {
+	if magicID != "" {
+		if rule, ok := m.byID[magicID]; ok {
+			if replace == "" {
+				replace = rule.Replace
+			}
+			return rule.Pattern, replace
+		}
+		return `(?!x)x`, replace
+	}
+	return m.Resolve(pattern, replace)
 }
 
 // SetClock keeps {DATE} deterministic in tests.

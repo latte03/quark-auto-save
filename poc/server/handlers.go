@@ -64,9 +64,13 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 
 	selected := indices
 	if len(selected) == 0 && spec.Inline == nil {
-		selected = make([]int, len(snapshot.Tasks))
-		for i := range selected {
-			selected[i] = i
+		for index, task := range snapshot.Tasks {
+			// Finished one-shot tasks stay in the list as a record but are
+			// not part of "run everything" anymore.
+			if task.OnceFinished() {
+				continue
+			}
+			selected = append(selected, index)
 		}
 	}
 
@@ -127,6 +131,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 	stats := map[string]int{}
 	bans := map[int]string{}
 	additions := map[int]json.RawMessage{}
+	completed := map[int]bool{}
 	saved := 0
 	executed := 0
 	for position, job := range jobs {
@@ -148,6 +153,12 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 		}
 		if task.HasRunWeek() {
 			logf("运行星期: %v", task.RunWeek)
+		}
+		if len(task.RunTime) > 0 {
+			logf("运行时间: %s", strings.Join(task.RunTime, "、"))
+		}
+		if task.IsOnce() {
+			logf("运行方式: 单次")
 		}
 		if task.EndDate != "" {
 			logf("截止日期: %s", task.EndDate)
@@ -177,6 +188,11 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 			if write && index >= 0 {
 				bans[index] = task.ShareURLBan
 			}
+		}
+		// A one-shot task is finished once a real run went through, even if
+		// the share had nothing new; failures and bans keep it runnable.
+		if write && index >= 0 && task.IsOnce() && !task.OnceFinished() && task.ShareURLBan == "" {
+			completed[index] = true
 		}
 		if err := task.MergePluginDefaults(pluginList); err != nil {
 			logf("✗ 合并插件默认配置失败: %v", err)
@@ -211,7 +227,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 	if write {
 		run.setStats(stats)
 		if spec.Inline == nil {
-			if err := s.store.ApplyRunResults(bans, additions); err != nil {
+			if err := s.store.ApplyRunResults(bans, additions, completed); err != nil {
 				logf("✗ 回写配置失败: %v", err)
 			}
 		}
@@ -420,6 +436,7 @@ func (s *Server) handleShareDetail(w http.ResponseWriter, r *http.Request) {
 		ShareURL        string `json:"shareurl"`
 		PdirFID         string `json:"pdir_fid"`
 		TaskName        string `json:"taskname"`
+		MagicID         string `json:"magic_id"`
 		Pattern         string `json:"pattern"`
 		Replace         string `json:"replace"`
 		SavePath        string `json:"savepath"`
@@ -485,7 +502,7 @@ func (s *Server) handleShareDetail(w http.ResponseWriter, r *http.Request) {
 	snapshot := s.store.Snapshot()
 	magic := quark.NewMagic(snapshot.Magic)
 	magic.SetTaskName(request.TaskName)
-	pattern, replace := magic.Resolve(request.Pattern, request.Replace)
+	pattern, replace := magic.ResolveTask(request.MagicID, request.Pattern, request.Replace)
 
 	var views []shareFileView
 	var pending []*quark.ShareFile
@@ -575,6 +592,7 @@ type renamePreviewItem struct {
 func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		TaskName string   `json:"taskname"`
+		MagicID  string   `json:"magic_id"`
 		Pattern  string   `json:"pattern"`
 		Replace  string   `json:"replace"`
 		Files    []string `json:"files"`
@@ -590,7 +608,7 @@ func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 	snapshot := s.store.Snapshot()
 	magic := quark.NewMagic(snapshot.Magic)
 	magic.SetTaskName(request.TaskName)
-	pattern, replace := magic.Resolve(request.Pattern, request.Replace)
+	pattern, replace := magic.ResolveTask(request.MagicID, request.Pattern, request.Replace)
 
 	items := make([]renamePreviewItem, len(request.Files))
 	var planned []*quark.ShareFile

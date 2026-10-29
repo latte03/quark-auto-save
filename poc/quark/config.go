@@ -2,9 +2,12 @@ package quark
 
 import (
 	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -15,7 +18,7 @@ type Config struct {
 	Path       string
 	Cookie     json.RawMessage
 	Plugins    map[string]json.RawMessage
-	MagicRegex map[string]Rule
+	MagicRegex []Rule
 	Tasks      []*Task
 	raw        map[string]json.RawMessage
 	order      []string
@@ -33,10 +36,15 @@ type Task struct {
 	SavePath               string
 	Pattern                string
 	Replace                string
+	MagicID                string
 	StartFID               string
 	EndDate                string
 	RunWeek                []int
 	runWeekSet             bool
+	RunTime                []string
+	runTimeSet             bool
+	Mode                   string
+	OnceDoneAt             string
 	UpdateSubdir           string
 	UpdateSubdirResaveMode bool
 	IgnoreExtension        bool
@@ -64,8 +72,15 @@ func LoadConfig(path string) (*Config, error) {
 		}
 	}
 	if value, ok := doc["magic_regex"]; ok && len(value) > 0 {
-		if err := json.Unmarshal(value, &cfg.MagicRegex); err != nil {
+		rules, err := ParseRules(value)
+		if err != nil {
 			return nil, fmt.Errorf("parse magic_regex: %w", err)
+		}
+		cfg.MagicRegex = rules
+		// Rewrite the legacy name-keyed object into the list form so ids are
+		// persisted on the next save.
+		if err := cfg.SetKey("magic_regex", rules); err != nil {
+			return nil, err
 		}
 	}
 	if value, ok := doc["tasklist"]; ok && len(value) > 0 {
@@ -73,7 +88,122 @@ func LoadConfig(path string) (*Config, error) {
 			return nil, fmt.Errorf("parse tasklist: %w", err)
 		}
 	}
+	cfg.migrateTaskMagic()
 	return cfg, nil
+}
+
+// migrateTaskMagic turns legacy "pattern is the rule name" tasks into stable
+// rule references so renaming a rule never touches tasks.
+func (c *Config) migrateTaskMagic() {
+	if len(c.MagicRegex) == 0 {
+		return
+	}
+	ids := make(map[string]string, len(c.MagicRegex))
+	for _, rule := range c.MagicRegex {
+		if rule.Name == "" {
+			continue
+		}
+		if _, ok := ids[rule.Name]; !ok {
+			ids[rule.Name] = rule.ID
+		}
+	}
+	for _, task := range c.Tasks {
+		if task.MagicID != "" || task.Pattern == "" {
+			continue
+		}
+		if id, ok := ids[task.Pattern]; ok {
+			task.MagicID = id
+			task.Pattern = ""
+		}
+	}
+}
+
+// DeriveRuleID builds a stable id from a rule name so legacy configs and
+// defaults keep the same id across restarts.
+func DeriveRuleID(name string) string {
+	sum := sha1.Sum([]byte(name))
+	return "m" + hex.EncodeToString(sum[:4])
+}
+
+// NormalizeRules fills missing ids and names and keeps ids unique.
+func NormalizeRules(rules []Rule) []Rule {
+	out := make([]Rule, 0, len(rules))
+	seen := map[string]bool{}
+	for index, rule := range rules {
+		rule.ID = strings.TrimSpace(rule.ID)
+		rule.Name = strings.TrimSpace(rule.Name)
+		base := rule.ID
+		if base == "" {
+			name := rule.Name
+			if name == "" {
+				name = fmt.Sprintf("rule-%d", index+1)
+			}
+			base = DeriveRuleID(name)
+		}
+		id := base
+		for suffix := 2; seen[id]; suffix++ {
+			id = fmt.Sprintf("%s-%d", base, suffix)
+		}
+		rule.ID = id
+		if rule.Name == "" {
+			rule.Name = rule.ID
+		}
+		seen[id] = true
+		out = append(out, rule)
+	}
+	return out
+}
+
+// ParseRules accepts both the list form and the legacy name-keyed object.
+func ParseRules(raw json.RawMessage) ([]Rule, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil, nil
+	}
+	if trimmed[0] == '[' {
+		var rules []Rule
+		if err := json.Unmarshal(trimmed, &rules); err != nil {
+			return nil, err
+		}
+		return NormalizeRules(rules), nil
+	}
+	var legacy map[string]Rule
+	if err := json.Unmarshal(trimmed, &legacy); err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(legacy))
+	for name := range legacy {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	rules := make([]Rule, 0, len(names))
+	for _, name := range names {
+		rule := legacy[name]
+		rule.Name = name
+		rules = append(rules, rule)
+	}
+	return NormalizeRules(rules), nil
+}
+
+// RuleByID finds a rule by its stable id.
+func (c *Config) RuleByID(id string) (Rule, bool) {
+	if id == "" {
+		return Rule{}, false
+	}
+	for _, rule := range c.MagicRegex {
+		if rule.ID == id {
+			return rule, true
+		}
+	}
+	return Rule{}, false
+}
+
+// RuleName returns the rule name for a stable id, or "" when unknown.
+func (c *Config) RuleName(id string) string {
+	if rule, ok := c.RuleByID(id); ok {
+		return rule.Name
+	}
+	return ""
 }
 
 // Cookies returns the configured cookies; a multi-line string is split the
@@ -119,10 +249,18 @@ func (c *Config) SetKey(key string, value any) error {
 	case "cookie":
 		c.Cookie = encoded
 	case "magic_regex":
-		c.MagicRegex = nil
-		if err := json.Unmarshal(encoded, &c.MagicRegex); err != nil {
+		rules, err := ParseRules(encoded)
+		if err != nil {
 			return fmt.Errorf("parse magic_regex: %w", err)
 		}
+		// Store the normalized list (ids/names filled in), not the caller's
+		// raw shape.
+		normalized, err := json.Marshal(rules)
+		if err != nil {
+			return err
+		}
+		c.MagicRegex = rules
+		c.raw[key] = normalized
 	case "plugins":
 		c.Plugins = nil
 		if err := json.Unmarshal(encoded, &c.Plugins); err != nil {
@@ -213,10 +351,13 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.SavePath = stringField(m, "savepath")
 	t.Pattern = stringField(m, "pattern")
 	t.Replace = stringField(m, "replace")
+	t.MagicID = stringField(m, "magic_id")
 	t.StartFID = stringField(m, "startfid")
 	t.EndDate = stringField(m, "enddate")
 	t.UpdateSubdir = stringField(m, "update_subdir")
 	t.ShareURLBan = stringField(m, "shareurl_ban")
+	t.Mode = stringField(m, "mode")
+	t.OnceDoneAt = stringField(m, "once_done_at")
 	t.IgnoreExtension = boolField(m, "ignore_extension")
 	t.UpdateSubdirResaveMode = boolField(m, "update_subdir_resave_mode")
 	t.Addition = m["addition"]
@@ -233,6 +374,12 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("parse runweek: %w", err)
 		}
 	}
+	if value, ok := m["runtime"]; ok {
+		t.runTimeSet = true
+		if err := json.Unmarshal(value, &t.RunTime); err != nil {
+			return fmt.Errorf("parse runtime: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -246,18 +393,38 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 	setString(m, "savepath", t.SavePath)
 	setString(m, "pattern", t.Pattern)
 	setString(m, "replace", t.Replace)
+	setString(m, "magic_id", t.MagicID)
 	setString(m, "startfid", t.StartFID)
 	setString(m, "enddate", t.EndDate)
 	setString(m, "update_subdir", t.UpdateSubdir)
 	setString(m, "shareurl_ban", t.ShareURLBan)
 	setBool(m, "ignore_extension", t.IgnoreExtension)
 	setBool(m, "update_subdir_resave_mode", t.UpdateSubdirResaveMode)
+	// Empty values are dropped so switching back to the scheduled mode does
+	// not leave stale keys in the config.
+	if t.Mode != "" {
+		setString(m, "mode", t.Mode)
+	} else {
+		delete(m, "mode")
+	}
+	if t.OnceDoneAt != "" {
+		setString(m, "once_done_at", t.OnceDoneAt)
+	} else {
+		delete(m, "once_done_at")
+	}
 	if t.runWeekSet || len(t.RunWeek) > 0 {
 		encoded, err := json.Marshal(t.RunWeek)
 		if err != nil {
 			return nil, err
 		}
 		m["runweek"] = encoded
+	}
+	if t.runTimeSet || len(t.RunTime) > 0 {
+		encoded, err := json.Marshal(t.RunTime)
+		if err != nil {
+			return nil, err
+		}
+		m["runtime"] = encoded
 	}
 	if t.LocalDownload != nil {
 		encoded, err := json.Marshal(t.LocalDownload)
@@ -300,6 +467,19 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Task) HasRunWeek() bool { return t.runWeekSet }
+
+// IsOnce marks tasks that run a single time and never join the scheduler.
+func (t *Task) IsOnce() bool { return t.Mode == "once" }
+
+// NormalizeMode drops unknown values so only "once" changes the schedule.
+func (t *Task) NormalizeMode() {
+	if t.Mode != "once" {
+		t.Mode = ""
+	}
+}
+
+// OnceFinished reports a one-shot task that already completed a real run.
+func (t *Task) OnceFinished() bool { return t.IsOnce() && t.OnceDoneAt != "" }
 
 // RemoveFields drops UI-only or derived keys so they are not written back.
 func (t *Task) RemoveFields(names ...string) {

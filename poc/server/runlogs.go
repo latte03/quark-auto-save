@@ -41,7 +41,7 @@ func (s *runLogStore) save(run *Run, keep int) error {
 		Label:      view.Label,
 		StartedAt:  view.StartedAt,
 		FinishedAt: view.FinishedAt,
-		Done:       view.Done,
+		Done:       true,
 		Error:      view.Error,
 		SavedTotal: view.SavedTotal,
 		Dry:        view.Dry,

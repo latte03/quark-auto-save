@@ -110,7 +110,7 @@ func printChildren(w io.Writer, node *TreeNode, prefix string) {
 
 type Runner struct {
 	api           API
-	rules         map[string]Rule
+	rules         []Rule
 	DryRun        bool
 	CreateDirs    bool
 	Out           io.Writer
@@ -120,7 +120,7 @@ type Runner struct {
 	Notifications []string
 }
 
-func NewRunner(api API, rules map[string]Rule) *Runner {
+func NewRunner(api API, rules []Rule) *Runner {
 	return &Runner{
 		api:         api,
 		rules:       rules,
@@ -293,7 +293,7 @@ func (r *Runner) dirCheckAndSave(task *Task, pwdID, stoken, pdirFID, subdirPath 
 	magic := NewMagic(r.rules)
 	magic.SetTaskName(task.TaskName)
 	magic.SetClock(r.Now)
-	pattern, replace := magic.Resolve(task.Pattern, task.Replace)
+	pattern, replace := magic.ResolveTask(task.MagicID, task.Pattern, task.Replace)
 
 	var needSave []*ShareFile
 	for _, item := range shareFiles {

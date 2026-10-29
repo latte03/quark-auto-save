@@ -36,9 +36,14 @@ func loadMagicCases(t *testing.T) []magicCase {
 
 func TestMagicParityWithPython(t *testing.T) {
 	cases := loadMagicCases(t)
-	rules := map[string]Rule{}
+	rules := []Rule{}
+	seen := map[string]bool{}
 	for _, c := range cases {
-		rules[c.Rule] = Rule{Pattern: c.Pattern, Replace: c.Replace}
+		if seen[c.Rule] {
+			continue
+		}
+		seen[c.Rule] = true
+		rules = append(rules, Rule{Name: c.Rule, Pattern: c.Pattern, Replace: c.Replace})
 	}
 	magic := NewMagic(rules)
 

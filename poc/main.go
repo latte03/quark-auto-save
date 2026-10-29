@@ -525,7 +525,7 @@ type dumpTask struct {
 type dumpFixture struct {
 	Notes      string                       `json:"notes"`
 	CapturedAt string                       `json:"captured_at"`
-	MagicRegex map[string]quark.Rule        `json:"magic_regex"`
+	MagicRegex []quark.Rule                 `json:"magic_regex"`
 	Tasks      []dumpTask                   `json:"tasks"`
 	Share      map[string][]quark.ShareFile `json:"share"`
 	Dest       map[string][]quark.ShareFile `json:"dest"`

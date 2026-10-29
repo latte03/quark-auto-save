@@ -28,7 +28,7 @@ type Store struct {
 type Snapshot struct {
 	Tasks    []*quark.Task
 	Cookies  []string
-	Magic    map[string]quark.Rule
+	Magic    []quark.Rule
 	Plugins  map[string]json.RawMessage
 	Crontab  string
 	Username string
@@ -93,12 +93,14 @@ func ensureDefaults(cfg *quark.Config) (defaultsNotice, error) {
 	}
 
 	if len(cfg.MagicRegex) == 0 {
-		defaults := map[string]quark.Rule{
-			"$TV": {
+		defaults := []quark.Rule{
+			{
+				Name:    "$TV",
 				Pattern: `.*?([Ss]\d{1,2})?(?:[第EePpXx\.\-\_\( ]{1,2}|^)(\d{1,3})(?!\d).*?\.(mp4|mkv)`,
 				Replace: `\1E\2.\3`,
 			},
-			"$BLACK_WORD": {
+			{
+				Name:    "$BLACK_WORD",
 				Pattern: `^(?!.*纯享)(?!.*加更)(?!.*超前企划)(?!.*训练室)(?!.*蒸蒸日上).*`,
 				Replace: "",
 			},
@@ -315,12 +317,8 @@ func cloneTask(task *quark.Task) *quark.Task {
 	return &out
 }
 
-func cloneRules(rules map[string]quark.Rule) map[string]quark.Rule {
-	out := make(map[string]quark.Rule, len(rules))
-	for key, value := range rules {
-		out[key] = value
-	}
-	return out
+func cloneRules(rules []quark.Rule) []quark.Rule {
+	return append([]quark.Rule(nil), rules...)
 }
 
 func clonePlugins(in map[string]json.RawMessage) map[string]json.RawMessage {
@@ -343,7 +341,7 @@ func (s *Store) ConfigView(version string, apiToken string) map[string]any {
 	view := map[string]any{
 		"cookie":        cookies,
 		"crontab":       crontabValue(cfg),
-		"next_runs":     nextRuns(crontabValue(cfg), time.Now(), 3),
+		"next_runs":     configNextRuns(cfg, time.Now()),
 		"version":       version,
 		"api_token":     apiToken,
 		"plugin_status": plugins.Configured(cfg.Plugins),
@@ -351,7 +349,7 @@ func (s *Store) ConfigView(version string, apiToken string) map[string]any {
 	}
 	for key, fallback := range map[string]any{
 		"push_config":    map[string]any{},
-		"magic_regex":    map[string]any{},
+		"magic_regex":    []any{},
 		"source":         defaultSources(),
 		"local_download": defaultLocalDownload(),
 		"run_logs":       defaultRunLogs(),
@@ -461,6 +459,25 @@ func (s *Store) Update(partial map[string]json.RawMessage) error {
 			}
 			continue
 		}
+		if key == "magic_regex" {
+			rules, err := quark.ParseRules(raw)
+			if err != nil {
+				return fmt.Errorf("magic_regex: %w", err)
+			}
+			known := map[string]bool{}
+			for _, rule := range rules {
+				known[rule.ID] = true
+			}
+			for _, task := range s.cfg.Tasks {
+				if task.MagicID != "" && !known[task.MagicID] {
+					return fmt.Errorf("任务《%s》仍在使用被删除的规则，请先修改该任务", task.TaskName)
+				}
+			}
+			if err := s.cfg.SetKey("magic_regex", rules); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := s.cfg.SetKey(key, raw); err != nil {
 			return err
 		}
@@ -485,9 +502,10 @@ func (s *Store) MutateTasks(fn func([]*quark.Task) ([]*quark.Task, error)) error
 	return s.cfg.Save()
 }
 
-// ApplyRunResults persists bans and merged plugin defaults after a real run.
-func (s *Store) ApplyRunResults(bans map[int]string, additions map[int]json.RawMessage) error {
-	if len(bans) == 0 && len(additions) == 0 {
+// ApplyRunResults persists bans, merged plugin defaults and one-shot
+// completions after a real run.
+func (s *Store) ApplyRunResults(bans map[int]string, additions map[int]json.RawMessage, completed map[int]bool) error {
+	if len(bans) == 0 && len(additions) == 0 && len(completed) == 0 {
 		return nil
 	}
 	s.mu.Lock()
@@ -501,6 +519,47 @@ func (s *Store) ApplyRunResults(bans map[int]string, additions map[int]json.RawM
 		if index >= 0 && index < len(s.cfg.Tasks) {
 			s.cfg.Tasks[index].Addition = addition
 		}
+	}
+	doneAt := time.Now().Format(time.RFC3339)
+	for index, done := range completed {
+		if !done || index < 0 || index >= len(s.cfg.Tasks) {
+			continue
+		}
+		task := s.cfg.Tasks[index]
+		if task.IsOnce() && task.OnceDoneAt == "" {
+			task.OnceDoneAt = doneAt
+		}
+	}
+	return s.cfg.Save()
+}
+
+// RenameMagic changes only the display name of a rule. Tasks reference the
+// stable id, so nothing else has to be rewritten.
+func (s *Store) RenameMagic(id, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("规则名称不能为空")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rules := append([]quark.Rule(nil), s.cfg.MagicRegex...)
+	found := false
+	for index, rule := range rules {
+		if rule.ID != id {
+			continue
+		}
+		found = true
+		rules[index].Name = name
+	}
+	if !found {
+		return fmt.Errorf("规则不存在: %s", id)
+	}
+	for _, rule := range rules {
+		if rule.Name == name && rule.ID != id {
+			return fmt.Errorf("已存在同名规则: %s", name)
+		}
+	}
+	if err := s.cfg.SetKey("magic_regex", rules); err != nil {
+		return err
 	}
 	return s.cfg.Save()
 }

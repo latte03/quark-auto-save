@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -96,6 +97,13 @@ func (r *Run) appendLine(line string) {
 }
 
 func (r *Run) finish(err error) {
+	r.finalize(err)
+	r.publish()
+}
+
+// finalize records the outcome but keeps the run open so finish hooks (log
+// persistence) complete before observers see done.
+func (r *Run) finalize(err error) {
 	if r.writer != nil {
 		r.writer.flush()
 	}
@@ -105,8 +113,13 @@ func (r *Run) finish(err error) {
 		r.errMsg = err.Error()
 		r.lines = append(r.lines, "❌ 运行失败: "+err.Error())
 	}
-	r.done = true
 	r.finishedAt = time.Now()
+}
+
+func (r *Run) publish() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.done = true
 	for ch := range r.subs {
 		select {
 		case ch <- struct{}{}:
@@ -228,7 +241,7 @@ func (m *RunManager) Start(label string, write bool, fn func(*Run) error) (*Run,
 		run.mu.Lock()
 		run.saved = sumStats(run.stats)
 		run.mu.Unlock()
-		run.finish(err)
+		run.finalize(err)
 		m.mu.Lock()
 		hook := m.OnFinish
 		for name, saved := range run.stats {
@@ -238,6 +251,7 @@ func (m *RunManager) Start(label string, write bool, fn func(*Run) error) (*Run,
 		if hook != nil {
 			hook(run)
 		}
+		run.publish()
 	}()
 	return run, nil
 }
@@ -321,7 +335,8 @@ func (r *Run) setStats(stats map[string]int) {
 	r.mu.Unlock()
 }
 
-// Scheduler owns the single crontab entry described by the config.
+// Scheduler registers one cron entry per distinct task clock time. A fire
+// only starts the tasks whose time, weekday and end date all match.
 type Scheduler struct {
 	mu      sync.Mutex
 	current *cron.Cron
@@ -335,67 +350,83 @@ func ValidCrontab(spec string) bool {
 	return err == nil
 }
 
-func cronParse(spec string) (cron.Schedule, error) {
-	return cron.ParseStandard(spec)
-}
-
-// nextRuns renders the next cron fire times for the settings panel.
-func nextRuns(spec string, now time.Time, count int) []string {
-	if spec == "" || count <= 0 {
-		return []string{}
-	}
-	schedule, err := cronParse(spec)
-	if err != nil {
-		return []string{}
-	}
-	out := make([]string, 0, count)
-	next := now
-	tomorrow := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, 1)
-	for len(out) < count {
-		next = schedule.Next(next)
-		if next.IsZero() {
-			break
-		}
-		label := next.Format("15:04")
-		switch {
-		case next.Year() == now.Year() && next.YearDay() == now.YearDay():
-			out = append(out, "今天 "+label)
-		case next.Year() == tomorrow.Year() && next.YearDay() == tomorrow.YearDay():
-			out = append(out, "明天 "+label)
-		default:
-			out = append(out, weekdayLabels[int(next.Weekday())]+" "+label)
-		}
-	}
-	return out
-}
-
-func (s *Scheduler) Reload(spec string) error {
+func (s *Scheduler) Reload() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.current != nil {
 		s.current.Stop()
 		s.current = nil
 	}
-	if spec == "" {
-		return nil
-	}
-	if _, err := cron.ParseStandard(spec); err != nil {
-		return fmt.Errorf("crontab 格式无效: %w", err)
-	}
-	if len(s.server.store.Snapshot().Cookies) == 0 {
+	snapshot := s.server.store.Snapshot()
+	if len(snapshot.Cookies) == 0 {
 		s.server.logger.Printf("定时任务未启用：cookie 未配置")
 		return nil
 	}
-	runner := cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
-	if _, err := runner.AddFunc(spec, func() {
-		if _, err := s.server.startRun(runSpec{Label: "定时任务", Write: true}); err != nil {
-			s.server.logger.Printf("定时运行跳过: %v", err)
+	clocks := map[string]bool{}
+	legacy := false
+	for _, task := range snapshot.Tasks {
+		if task.IsOnce() {
+			continue
 		}
-	}); err != nil {
-		return err
+		times := taskTimes(task, snapshot.Crontab)
+		if len(times) == 0 {
+			legacy = true
+			continue
+		}
+		for _, clock := range times {
+			clocks[clock] = true
+		}
+	}
+	legacySpec := ""
+	if legacy && ValidCrontab(snapshot.Crontab) {
+		legacySpec = snapshot.Crontab
+	}
+	if len(clocks) == 0 && legacySpec == "" {
+		s.server.logger.Printf("调度器未启用：没有任务设置运行时间")
+		return nil
+	}
+
+	runner := cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DiscardLogger)))
+	for clock := range clocks {
+		at := strings.Split(clock, ":")
+		spec := fmt.Sprintf("%d %d * * *", atoi(at[1]), atoi(at[0]))
+		if _, err := runner.AddFunc(spec, func() {
+			current := s.server.store.Snapshot()
+			indices := dueTaskIndices(current.Tasks, current.Crontab, time.Now())
+			if len(indices) == 0 {
+				return
+			}
+			if _, err := s.server.startRun(runSpec{Label: "定时任务", Indices: indices, Write: true}); err != nil {
+				s.server.logger.Printf("定时运行跳过: %v", err)
+			}
+		}); err != nil {
+			return err
+		}
+	}
+	if legacySpec != "" {
+		if _, err := runner.AddFunc(legacySpec, func() {
+			current := s.server.store.Snapshot()
+			indices := legacyTaskIndices(current.Tasks, current.Crontab, time.Now())
+			if len(indices) == 0 {
+				return
+			}
+			if _, err := s.server.startRun(runSpec{Label: "定时任务", Indices: indices, Write: true}); err != nil {
+				s.server.logger.Printf("定时运行跳过: %v", err)
+			}
+		}); err != nil {
+			return err
+		}
 	}
 	runner.Start()
 	s.current = runner
-	s.server.logger.Printf("调度器已加载: %s", spec)
+	s.server.logger.Printf("调度器已加载: %d 个时刻", len(clocks))
+	if legacySpec != "" {
+		s.server.logger.Printf("旧 crontab 作为兜底: %s", legacySpec)
+	}
 	return nil
+}
+
+func atoi(value string) int {
+	out, _ := strconv.Atoi(value)
+	return out
 }

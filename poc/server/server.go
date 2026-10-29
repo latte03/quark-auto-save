@@ -15,9 +15,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/robfig/cron/v3"
 
 	"qas-poc/plugins"
 	"qas-poc/quark"
@@ -45,6 +48,7 @@ type Server struct {
 	newClient func(string) *quark.Client
 	downloads *downloadQueue
 	runLogs   *runLogStore
+	qr        *qrLogin
 }
 
 func New(opts Options) (*Server, error) {
@@ -69,6 +73,7 @@ func New(opts Options) (*Server, error) {
 		newClient: quark.New,
 	}
 	server.downloads = newDownloadQueue(logger)
+	server.qr = newQRLogin(client, logger)
 	dataDir := opts.DataDir
 	if dataDir == "" {
 		dataDir = os.Getenv("TRIM_PKGVAR")
@@ -86,7 +91,7 @@ func New(opts Options) (*Server, error) {
 		}
 	}
 	server.scheduler = NewScheduler(server)
-	if err := server.scheduler.Reload(store.Crontab()); err != nil {
+	if err := server.scheduler.Reload(); err != nil {
 		logger.Printf("调度器加载失败: %v", err)
 	}
 	if notice.GeneratedPassword != "" {
@@ -100,6 +105,9 @@ func (s *Server) Handler() http.Handler { return s.mux }
 
 func (s *Server) routes() {
 	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/quark/qr", s.auth(s.handleStartQuarkQR))
+	mux.HandleFunc("GET /api/quark/qr/{id}", s.auth(s.handleQuarkQRStatus))
+	mux.HandleFunc("GET /api/quark/account", s.auth(s.handleQuarkAccount))
 	mux.HandleFunc("GET /api/session", s.handleSession)
 	mux.HandleFunc("POST /api/login", s.handleLogin)
 	mux.HandleFunc("POST /api/logout", s.handleLogout)
@@ -107,6 +115,7 @@ func (s *Server) routes() {
 
 	mux.HandleFunc("GET /api/config", s.auth(s.handleGetConfig))
 	mux.HandleFunc("PUT /api/config", s.auth(s.handleUpdateConfig))
+	mux.HandleFunc("POST /api/magic/rename", s.auth(s.handleRenameMagic))
 	mux.HandleFunc("GET /api/tasks", s.auth(s.handleTasks))
 	mux.HandleFunc("POST /api/tasks", s.auth(s.handleCreateTask))
 	mux.HandleFunc("PUT /api/tasks/{index}", s.auth(s.handleUpdateTask))
@@ -283,13 +292,35 @@ func (s *Server) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := s.scheduler.Reload(s.store.Crontab()); err != nil {
+	if err := s.scheduler.Reload(); err != nil {
 		s.logger.Printf("调度器重载失败: %v", err)
 	}
 	username, password := s.store.WebUI()
 	view := s.store.ConfigView(s.opts.Version, s.apiToken(username, password))
 	s.logger.Printf("配置已保存")
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": view})
+}
+
+func (s *Server) handleRenameMagic(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "请求格式错误")
+		return
+	}
+	name := strings.TrimSpace(request.Name)
+	if request.ID == "" || name == "" {
+		writeError(w, http.StatusBadRequest, "规则名称不能为空")
+		return
+	}
+	if err := s.store.RenameMagic(request.ID, name); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.logger.Printf("重命名魔法规则 %s → %s", request.ID, name)
+	s.respondTasks(w)
 }
 
 // ---------- tasks ----------
@@ -310,7 +341,7 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	stats := s.runs.TaskStats()
 	views := make([]map[string]any, 0, len(snapshot.Tasks))
 	for index, task := range snapshot.Tasks {
-		views = append(views, taskView(index, task, now, snapshot.Crontab, stats))
+		views = append(views, taskView(index, task, now, snapshot.Crontab, stats, snapshot.Magic))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
@@ -335,6 +366,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	task.OnceDoneAt = ""
 	if err := s.store.MutateTasks(func(tasks []*quark.Task) ([]*quark.Task, error) {
 		return append(tasks, task), nil
 	}); err != nil {
@@ -363,6 +395,14 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	err = s.store.MutateTasks(func(tasks []*quark.Task) ([]*quark.Task, error) {
 		if index < 0 || index >= len(tasks) {
 			return nil, errors.New("任务不存在")
+		}
+		previous := tasks[index]
+		// Editing a finished one-shot task gives it a new run, so the
+		// completion mark only survives an unchanged save.
+		if task.IsOnce() && sameTaskContent(previous, task) {
+			task.OnceDoneAt = previous.OnceDoneAt
+		} else {
+			task.OnceDoneAt = ""
 		}
 		tasks[index] = task
 		return tasks, nil
@@ -397,14 +437,37 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) respondTasks(w http.ResponseWriter) {
+	if err := s.scheduler.Reload(); err != nil {
+		s.logger.Printf("调度器重载失败: %v", err)
+	}
 	snapshot := s.store.Snapshot()
 	now := time.Now()
 	stats := s.runs.TaskStats()
 	views := make([]map[string]any, 0, len(snapshot.Tasks))
 	for index, task := range snapshot.Tasks {
-		views = append(views, taskView(index, task, now, snapshot.Crontab, stats))
+		views = append(views, taskView(index, task, now, snapshot.Crontab, stats, snapshot.Magic))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": map[string]any{"tasks": views}})
+}
+
+// sameTaskContent compares every field except the one-shot completion mark.
+func sameTaskContent(a, b *quark.Task) bool {
+	left, right := cloneTask(a), cloneTask(b)
+	left.OnceDoneAt = ""
+	right.OnceDoneAt = ""
+	return reflect.DeepEqual(taskFields(left), taskFields(right))
+}
+
+func taskFields(task *quark.Task) any {
+	raw, err := json.Marshal(task)
+	if err != nil {
+		return nil
+	}
+	var out any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	return out
 }
 
 func readTask(r *http.Request) (*quark.Task, error) {
@@ -425,6 +488,7 @@ func readTask(r *http.Request) (*quark.Task, error) {
 	}
 	task.RemoveFields("index", "status", "latest", "next_run", "progress")
 	task.SavePath = quark.NormalizePath(task.SavePath)
+	task.NormalizeMode()
 	return &task, nil
 }
 
@@ -441,10 +505,15 @@ func validateTask(task *quark.Task) error {
 	if strings.TrimSpace(task.SavePath) == "" || task.SavePath == "/" {
 		return errors.New("保存路径不能为空")
 	}
+	for _, value := range task.RunTime {
+		if _, ok := parseClock(value); !ok {
+			return fmt.Errorf("运行时间格式无效: %s（应为 HH:MM）", value)
+		}
+	}
 	return nil
 }
 
-func taskView(index int, task *quark.Task, now time.Time, crontab string, stats map[string]TaskStats) map[string]any {
+func taskView(index int, task *quark.Task, now time.Time, crontab string, stats map[string]TaskStats, rules []quark.Rule) map[string]any {
 	raw, _ := json.Marshal(task)
 	var view map[string]any
 	_ = json.Unmarshal(raw, &view)
@@ -456,6 +525,19 @@ func taskView(index int, task *quark.Task, now time.Time, crontab string, stats 
 	}
 	if _, ok := view["runweek"]; !ok {
 		view["runweek"] = []int{1, 2, 3, 4, 5, 6, 7}
+	}
+	// Same idea for scheduling: show the effective times so editing a task
+	// saved under the old global crontab keeps its cadence.
+	if times := taskTimes(task, crontab); len(times) > 0 {
+		view["runtime"] = times
+	}
+	if task.MagicID != "" {
+		for _, rule := range rules {
+			if rule.ID == task.MagicID {
+				view["magic_name"] = rule.Name
+				break
+			}
+		}
 	}
 	view["index"] = index
 	view["status"] = statusOf(task, now)
@@ -476,8 +558,14 @@ func taskView(index int, task *quark.Task, now time.Time, crontab string, stats 
 }
 
 func statusOf(task *quark.Task, now time.Time) string {
+	if task.OnceFinished() {
+		return "once_done"
+	}
 	if task.ShareURLBan != "" {
 		return "banned"
+	}
+	if task.IsOnce() {
+		return "once"
 	}
 	if task.EndDate != "" {
 		end, err := time.ParseInLocation("2006-01-02", task.EndDate, now.Location())
@@ -519,29 +607,38 @@ func runweekDays(task *quark.Task) []int {
 var weekdayLabels = []string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}
 
 func nextRunLabel(task *quark.Task, crontab string, now time.Time) string {
-	if strings.TrimSpace(crontab) == "" {
+	if task.IsOnce() {
 		return "—"
 	}
-	schedule, err := cronParse(crontab)
-	if err != nil {
-		return "—"
-	}
-	next := now
-	for i := 0; i < 100; i++ {
-		next = schedule.Next(next)
+	var next time.Time
+	if times := nextTimesForTask(task, crontab, now, 1); len(times) > 0 {
+		next = times[0]
+	} else {
+		// A legacy crontab that cannot be expressed as clock times still
+		// drives tasks without runtime; keep its preview accurate.
+		schedule, err := cron.ParseStandard(strings.TrimSpace(crontab))
+		if err != nil {
+			return "—"
+		}
+		cursor := now
+		for i := 0; i < 100 && next.IsZero(); i++ {
+			cursor = schedule.Next(cursor)
+			if cursor.IsZero() {
+				return "—"
+			}
+			if scheduled, err := task.IsScheduled(cursor); err == nil && scheduled {
+				next = cursor
+			}
+		}
 		if next.IsZero() {
 			return "—"
 		}
-		if scheduled, err := task.IsScheduled(next); err != nil || !scheduled {
-			continue
-		}
-		label := next.Format("15:04")
-		if next.Year() == now.Year() && next.YearDay() == now.YearDay() {
-			return "今天 " + label
-		}
-		return weekdayLabels[int(next.Weekday())] + " " + label
 	}
-	return "—"
+	label := next.Format("15:04")
+	if next.Year() == now.Year() && next.YearDay() == now.YearDay() {
+		return "今天 " + label
+	}
+	return weekdayLabels[int(next.Weekday())] + " " + label
 }
 
 // ---------- run ----------
@@ -572,6 +669,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		}
 		task.RemoveFields("index", "status", "latest", "next_run", "progress")
 		task.SavePath = quark.NormalizePath(task.SavePath)
+		task.NormalizeMode()
 		if err := validateTask(&task); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
