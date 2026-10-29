@@ -163,3 +163,81 @@ func TestUpdateSavepathFID(t *testing.T) {
 		t.Fatalf("savepath fid not cached: %v", runner.savepathFID)
 	}
 }
+
+func TestSaveBatchMatchesSavedFidsByName(t *testing.T) {
+	api := &fakeAPI{
+		share: map[string][]ShareFile{"0": {
+			{FID: "f1", ShareFIDToken: "t1", FileName: "A.mkv"},
+			{FID: "f2", ShareFIDToken: "t2", FileName: "B.mkv"},
+		}},
+		dest:       map[string][]ShareFile{"/tv": {}},
+		savedFiles: []ShareFile{{FID: "saved-a", FileName: "A.mkv"}, {FID: "saved-b", FileName: "B.mkv"}},
+		shortFids:  1,
+	}
+	runner, out := newFakeRunner(api)
+	tree, err := runner.DoSaveTask(newPipelineTask("/tv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree == nil || tree.Size() != 2 {
+		t.Fatalf("tree = %#v", tree)
+	}
+	got := map[string]string{}
+	for _, child := range tree.Root().Children {
+		got[child.Data.FileName] = child.Data.FID
+	}
+	if got["A.mkv"] != "saved-a" || got["B.mkv"] != "saved-b" {
+		t.Fatalf("fids = %#v", got)
+	}
+	if !strings.Contains(out.String(), "数量不符") || !strings.Contains(out.String(), "匹配到 2/2") {
+		t.Fatalf("missing reconcile log:\n%s", out.String())
+	}
+}
+
+func TestSaveBatchSkipsItemMissingFromDestination(t *testing.T) {
+	api := &fakeAPI{
+		share: map[string][]ShareFile{"0": {
+			{FID: "f1", ShareFIDToken: "t1", FileName: "A.mkv"},
+			{FID: "f2", ShareFIDToken: "t2", FileName: "B.mkv"},
+		}},
+		dest:       map[string][]ShareFile{"/tv": {}},
+		savedFiles: []ShareFile{{FID: "saved-a", FileName: "A.mkv"}},
+		shortFids:  1,
+	}
+	runner, out := newFakeRunner(api)
+	tree, err := runner.DoSaveTask(newPipelineTask("/tv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree == nil || tree.Size() != 1 {
+		t.Fatalf("tree = %#v", tree)
+	}
+	if fid := tree.Root().Children[0].Data.FID; fid != "saved-a" {
+		t.Fatalf("fid = %q", fid)
+	}
+	if !strings.Contains(out.String(), `找不到 "B.mkv"`) {
+		t.Fatalf("missing skip log:\n%s", out.String())
+	}
+}
+
+func TestUpdateSavepathFIDIgnoresEndDateForOnceTasks(t *testing.T) {
+	api := &fakeAPI{dest: map[string][]ShareFile{}}
+	runner := NewRunner(api, nil)
+	runner.CreateDirs = true
+	runner.Out = io.Discard
+
+	var once Task
+	if err := once.UnmarshalJSON([]byte(`{"taskname":"once","shareurl":"https://pan.quark.cn/s/abc","savepath":"/tv/once","mode":"once","enddate":"2020-01-01"}`)); err != nil {
+		t.Fatal(err)
+	}
+	var scheduled Task
+	if err := scheduled.UnmarshalJSON([]byte(`{"taskname":"daily","shareurl":"https://pan.quark.cn/s/abc","savepath":"/tv/daily","enddate":"2020-01-01"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.UpdateSavepathFID([]*Task{&once, &scheduled}); err != nil {
+		t.Fatal(err)
+	}
+	if len(api.mkdirs) != 1 || api.mkdirs[0] != "/tv/once" {
+		t.Fatalf("mkdirs = %v", api.mkdirs)
+	}
+}

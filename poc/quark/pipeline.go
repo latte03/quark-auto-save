@@ -26,6 +26,7 @@ type API interface {
 
 type NodeData struct {
 	IsDir       bool
+	Size        int64
 	FileName    string
 	FileNameRe  string
 	FID         string
@@ -152,7 +153,9 @@ func (r *Runner) UpdateSavepathFID(tasks []*Task) error {
 	var paths []string
 	seen := map[string]bool{}
 	for _, task := range tasks {
-		if task.EndDate != "" {
+		// One-shot tasks are run by hand, so a leftover end date must not
+		// keep their destination directory from being created.
+		if task.EndDate != "" && !task.IsOnce() {
 			end, err := time.ParseInLocation("2006-01-02", task.EndDate, now.Location())
 			if err != nil || today.After(end) {
 				continue
@@ -444,11 +447,15 @@ func (r *Runner) saveBatch(task *Task, needSave []*ShareFile, toPdirFID, pwdID, 
 		}
 	}
 	if !r.DryRun && len(needSave) != len(topFIDs) {
-		r.logf("转存结果数量不符：计划 %d，返回 %d，跳过改名", len(needSave), len(topFIDs))
-		return nil
+		// The task result does not always report one fid per saved item.
+		// Matching names in the destination keeps the tree (rename, stats and
+		// local download) usable instead of dropping the whole batch.
+		r.logf("转存结果数量不符：计划 %d，返回 %d，改为按目标目录匹配", len(needSave), len(topFIDs))
+		topFIDs = r.matchSavedFIDs(toPdirFID, needSave)
 	}
 	for index, item := range needSave {
 		data := NodeData{
+			Size:        item.Size,
 			FileName:    item.FileName,
 			FileNameRe:  item.FileNameRe,
 			Path:        savepath + "/" + item.FileNameRe,
@@ -457,12 +464,41 @@ func (r *Runner) saveBatch(task *Task, needSave []*ShareFile, toPdirFID, pwdID, 
 		}
 		if r.DryRun {
 			data.Planned = true
+		} else if topFIDs[index] == "" {
+			r.logf("⚠ 目标目录中找不到 %q，跳过该项的改名与本地下载", item.FileName)
+			continue
 		} else {
 			data.FID = topFIDs[index]
 		}
 		r.addNode(root, iconFor(item)+item.FileNameRe, item.FID, data)
 	}
 	return nil
+}
+
+// matchSavedFIDs maps each saved item to the fid of the same-named entry in
+// the destination directory. Items without a match keep an empty fid.
+func (r *Runner) matchSavedFIDs(toPdirFID string, needSave []*ShareFile) []string {
+	fids := make([]string, len(needSave))
+	entries, err := r.api.LsDir(toPdirFID)
+	if err != nil {
+		r.logf("✗ 读取目标目录失败，无法补全转存结果：%v", err)
+		return fids
+	}
+	byName := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		if entry.FileName != "" && entry.FID != "" {
+			byName[entry.FileName] = entry.FID
+		}
+	}
+	matched := 0
+	for index, item := range needSave {
+		if fid, ok := byName[item.FileName]; ok {
+			fids[index] = fid
+			matched++
+		}
+	}
+	r.logf("按目标目录匹配到 %d/%d 个转存结果", matched, len(needSave))
+	return fids
 }
 
 func (r *Runner) addNode(parent *TreeNode, name, id string, data NodeData) {

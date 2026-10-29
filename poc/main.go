@@ -210,14 +210,16 @@ func cmdRun(args []string) {
 		if task.HasRunWeek() || task.EndDate != "" {
 			fmt.Printf("运行周期: WK%v ~ %s\n", task.RunWeek, task.EndDate)
 		}
-		scheduled, err := task.IsScheduled(time.Now())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "✗ 任务周期解析失败: %v\n", err)
-			continue
-		}
-		if !scheduled {
-			fmt.Println("任务不在运行周期内，跳过")
-			continue
+		if !task.IsOnce() {
+			scheduled, err := task.IsScheduled(time.Now())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "✗ 任务周期解析失败: %v\n", err)
+				continue
+			}
+			if !scheduled {
+				fmt.Println("任务不在运行周期内，跳过")
+				continue
+			}
 		}
 		ran++
 		tree, err := runner.DoSaveTask(task)

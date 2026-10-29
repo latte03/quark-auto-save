@@ -717,6 +717,23 @@ type fileAPIRecorder struct {
 func newFileTestServer(t *testing.T) (*Server, *httptest.Server, *fileAPIRecorder) {
 	t.Helper()
 	recorder := &fileAPIRecorder{}
+	// path_list only resolves directories, and files are found by listing
+	// their parent, mirroring the real Quark API.
+	dirs := map[string]string{
+		"/":         "0",
+		"/video":    "fid-video",
+		"/video/剧集": "fid-video-剧集",
+	}
+	entries := map[string][]map[string]any{
+		"0": {{"fid": "fid-video", "file_name": "video", "dir": true}},
+		"fid-video": {
+			{"fid": "fid-video/a.mp4", "file_name": "a.mp4", "size": 12},
+			{"fid": "fid-video-剧集", "file_name": "剧集", "dir": true},
+		},
+		"fid-video-剧集": {
+			{"fid": "fid-video-剧集/b.mkv", "file_name": "b.mkv", "size": 34},
+		},
+	}
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&body)
@@ -726,12 +743,20 @@ func newFileTestServer(t *testing.T) (*Server, *httptest.Server, *fileAPIRecorde
 			paths, _ := body["file_path"].([]any)
 			items := make([]map[string]string, 0, len(paths))
 			for _, item := range paths {
-				items = append(items, map[string]string{
-					"file_path": item.(string),
-					"fid":       "fid-" + strings.TrimPrefix(item.(string), "/"),
-				})
+				path, _ := item.(string)
+				if fid, ok := dirs[path]; ok && path != "/" {
+					items = append(items, map[string]string{"file_path": path, "fid": fid})
+				}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": 200, "code": 0, "data": items})
+		case "/1/clouddrive/file/sort":
+			list := entries[r.URL.Query().Get("pdir_fid")]
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status":   200,
+				"code":     0,
+				"metadata": map[string]any{"_total": len(list)},
+				"data":     map[string]any{"list": list},
+			})
 		case "/1/clouddrive/file/delete":
 			raw, _ := body["filelist"].([]any)
 			for _, item := range raw {
@@ -794,6 +819,58 @@ func TestDeleteFileRequiresConfirmAndRejectsRoot(t *testing.T) {
 	}
 	if len(recorder.deleted) != 1 || recorder.deleted[0] != "fid-video/a.mp4" {
 		t.Fatalf("deleted = %#v", recorder.deleted)
+	}
+}
+
+func TestDeleteFileResolvesNestedAndDirectories(t *testing.T) {
+	_, ts, recorder := newFileTestServer(t)
+	client := loginClient(t, ts.URL)
+
+	// A nested file is resolved through its parent directory, not path_list.
+	response, body := postJSON(t, client, ts.URL+"/api/files/delete", map[string]any{
+		"path":    "/video/剧集/b.mkv",
+		"confirm": true,
+	})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("nested delete = %d: %s", response.StatusCode, body)
+	}
+	// Directories still resolve by name.
+	response, body = postJSON(t, client, ts.URL+"/api/files/delete", map[string]any{
+		"path":    "/video/剧集",
+		"confirm": true,
+	})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("dir delete = %d: %s", response.StatusCode, body)
+	}
+	want := []string{"fid-video-剧集/b.mkv", "fid-video-剧集"}
+	if len(recorder.deleted) != len(want) || recorder.deleted[0] != want[0] || recorder.deleted[1] != want[1] {
+		t.Fatalf("deleted = %#v, want %#v", recorder.deleted, want)
+	}
+}
+
+func TestDeleteFileReportsMissingPath(t *testing.T) {
+	_, ts, recorder := newFileTestServer(t)
+	client := loginClient(t, ts.URL)
+
+	response, body := postJSON(t, client, ts.URL+"/api/files/delete", map[string]any{
+		"path":    "/video/missing.mp4",
+		"confirm": true,
+	})
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("missing delete = %d: %s", response.StatusCode, body)
+	}
+	if !strings.Contains(string(body), "路径不存在") {
+		t.Fatalf("message = %s", body)
+	}
+	if len(recorder.deleted) != 0 {
+		t.Fatalf("nothing should be deleted: %#v", recorder.deleted)
+	}
+	response, body = postJSON(t, client, ts.URL+"/api/files/delete", map[string]any{
+		"path":    "/missing/a.mp4",
+		"confirm": true,
+	})
+	if response.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "路径不存在") {
+		t.Fatalf("missing parent delete = %d: %s", response.StatusCode, body)
 	}
 }
 
@@ -1010,5 +1087,55 @@ func TestAPIKeyMatchesLoginToken(t *testing.T) {
 	username, password := instance.store.WebUI()
 	if got := APIKey(username, password); got != payload.Token {
 		t.Fatalf("APIKey = %q, login token = %q", got, payload.Token)
+	}
+}
+
+func TestOnceRunIgnoresLeftoverSchedule(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": 200, "code": 1, "message": "boom"})
+	}))
+	defer upstream.Close()
+
+	config := `{
+  "cookie": ["kps=placeholder; sign=placeholder; vcode=placeholder"],
+  "webui": {"username": "admin", "password": "test-pass"},
+  "crontab": "",
+  "local_download": {"dir": "/vol1/1000/media"},
+  "tasklist": [{
+    "taskname": "单次",
+    "shareurl": "https://pan.quark.cn/s/abc",
+    "savepath": "/tv/once",
+    "mode": "once",
+    "enddate": "2020-01-01",
+    "runweek": [],
+    "runtime": ["08:00"],
+    "local_download": {"enable": true}
+  }]
+}`
+	instance, ts := newTestServerWithConfig(t, config)
+	instance.newClient = func(cookie string) *quark.Client {
+		client := quark.New(cookie)
+		client.SetBaseURL(upstream.URL, upstream.URL)
+		return client
+	}
+	client := loginClient(t, ts.URL)
+
+	response, body := postJSON(t, client, ts.URL+"/api/run", map[string]any{"tasks": []int{0}, "write": true})
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("run = %d: %s", response.StatusCode, body)
+	}
+	var payload struct {
+		RunID string `json:"run_id"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatal(err)
+	}
+	log := strings.Join(waitRun(t, instance, payload.RunID), "\n")
+	if strings.Contains(log, "任务不在运行周期内") {
+		t.Fatalf("once task was skipped by its old schedule:\n%s", log)
+	}
+	if !strings.Contains(log, "任务名称: 单次") {
+		t.Fatalf("once task never ran:\n%s", log)
 	}
 }

@@ -224,3 +224,56 @@ func TestApplyRunResultsMarksOnceDone(t *testing.T) {
 		t.Fatalf("persisted task = %+v", doc.TaskList[0])
 	}
 }
+
+func TestRunnableTaskIgnoresScheduleForOnce(t *testing.T) {
+	thursday := time.Date(2026, 10, 29, 12, 0, 0, 0, time.Local)
+	once := mustTask(t, `{"taskname":"once","mode":"once","runweek":[1],"enddate":"2020-01-01"}`)
+	if ok, err := runnableTask(once, thursday); err != nil || !ok {
+		t.Fatalf("once runnable = %v, %v", ok, err)
+	}
+	scheduled := mustTask(t, `{"taskname":"daily","runweek":[1],"enddate":"2020-01-01"}`)
+	if ok, err := runnableTask(scheduled, thursday); err != nil || ok {
+		t.Fatalf("scheduled runnable = %v, %v", ok, err)
+	}
+}
+
+func TestMarkOnceDoneByName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	config := `{"tasklist":[
+		{"taskname":"once","mode":"once"},
+		{"taskname":"daily"},
+		{"taskname":"done","mode":"once","once_done_at":"2026-10-28T09:00:00+08:00"}
+	]}`
+	if err := os.WriteFile(path, []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, _, err := OpenStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkOnceDone("missing"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkOnceDone("daily"); err != nil {
+		t.Fatal(err)
+	}
+	if tasks := store.Tasks(); tasks[1].OnceDoneAt != "" {
+		t.Fatalf("scheduled task was marked done: %q", tasks[1].OnceDoneAt)
+	}
+
+	before := store.Tasks()[2].OnceDoneAt
+	if err := store.MarkOnceDone("done"); err != nil {
+		t.Fatal(err)
+	}
+	if after := store.Tasks()[2].OnceDoneAt; after != before {
+		t.Fatalf("completed task was rewritten: %q", after)
+	}
+
+	if err := store.MarkOnceDone("once"); err != nil {
+		t.Fatal(err)
+	}
+	tasks := store.Tasks()
+	if tasks[0].OnceDoneAt == "" {
+		t.Fatal("one-shot task was not marked done")
+	}
+}

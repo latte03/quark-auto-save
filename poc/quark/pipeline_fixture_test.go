@@ -50,6 +50,11 @@ type fakeAPI struct {
 	saveErr   error
 	saves     int
 	mkdirs    []string
+	// savedFiles are appended to the destination on save so a test can model
+	// what the drive looks like afterwards.
+	savedFiles []ShareFile
+	// shortFids truncates the task result to model a partial save_as_top_fids.
+	shortFids int
 }
 
 func destFID(path string) string { return "dest:" + path }
@@ -89,6 +94,10 @@ func (f *fakeAPI) SaveFile(fidList, fidTokenList []string, toPdirFID, pwdID, sto
 	if f.saveErr != nil {
 		return "", f.saveErr
 	}
+	if len(f.savedFiles) > 0 {
+		path := strings.TrimPrefix(toPdirFID, "dest:")
+		f.dest[path] = append(cloneFiles(f.dest[path]), f.savedFiles...)
+	}
 	return fmt.Sprintf("task-%d", len(fidList)), nil
 }
 
@@ -96,6 +105,9 @@ func (f *fakeAPI) QueryTask(taskID string) ([]string, error) {
 	var count int
 	if _, err := fmt.Sscanf(taskID, "task-%d", &count); err != nil {
 		return nil, err
+	}
+	if f.shortFids > 0 && count > f.shortFids {
+		count = f.shortFids
 	}
 	var ids []string
 	for i := 0; i < count; i++ {
