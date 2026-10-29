@@ -1,0 +1,74 @@
+#!/bin/bash
+set -u
+
+APP_DIR="${TRIM_APPDEST:-/var/apps/qas/target}"
+CONFIG="${TRIM_PKGETC:-/var/apps/qas/etc}/config.json"
+DATA="${TRIM_PKGVAR:-/var/apps/qas/var}"
+PORT="${TRIM_SERVICE_PORT:-8710}"
+PIDFILE="$DATA/qas.pid"
+LOGFILE="$DATA/qas.log"
+BIN="$APP_DIR/qas"
+
+start() {
+  if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    return 0
+  fi
+  mkdir -p "$DATA"
+  if [ ! -f "$CONFIG" ]; then
+    umask 077
+    printf '{}\n' > "$CONFIG"
+  fi
+  cd "$APP_DIR" || exit 1
+  nohup "$BIN" serve \
+    -config "$CONFIG" \
+    -data "$DATA" \
+    -addr "0.0.0.0:$PORT" \
+    -static "$APP_DIR/web/dist" \
+    -version "${TRIM_APPVER:-0.1.0}" \
+    >> "$LOGFILE" 2>&1 &
+  echo $! > "$PIDFILE"
+  sleep 1
+  if ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "QAS 启动失败，请查看日志 $LOGFILE" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+    return 1
+  fi
+}
+
+stop() {
+  if [ ! -f "$PIDFILE" ]; then
+    return 0
+  fi
+  local pid
+  pid="$(cat "$PIDFILE")"
+  if kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.5
+    done
+  fi
+  rm -f "$PIDFILE"
+}
+
+case "${1:-}" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+    stop
+    start
+    ;;
+  status)
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+      exit 0
+    fi
+    exit 3
+    ;;
+  *)
+    echo "不支持的参数: ${1:-}" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+    exit 1
+    ;;
+esac

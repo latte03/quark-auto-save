@@ -1,0 +1,2037 @@
+{
+  "sort": [
+    {
+      "names": [
+        "任务.1.mkv_1000",
+        "任务.10.mkv_2000",
+        "任务.2.mkv_500",
+        "任务.02.mkv_300",
+        "任务.S1E10.mkv_1",
+        "任务.S1E2.mkv_2",
+        "任务.第2期.第10集.mp4_1",
+        "任务.第2期.第9集.mp4_2",
+        "任务.上.mp4_1",
+        "任务.下.mp4_2",
+        "任务.中.mp4_3",
+        "任务.一百.第3集.mp4_4",
+        "任务.a.mp4_1",
+        "任务.B.mp4_2",
+        "任务.1a.mp4_1",
+        "任务.1.5.mp4_2",
+        "任务.-1.mp4_3",
+        "任务.001.mp4_4",
+        "任务.1.mp4_5"
+      ],
+      "want": [
+        "任务.1.5.mp4_2",
+        "任务.1.mkv_1000",
+        "任务.001.mp4_4",
+        "任务.1.mp4_5",
+        "任务.1a.mp4_1",
+        "任务.02.mkv_300",
+        "任务.2.mkv_500",
+        "任务.10.mkv_2000",
+        "任务.-1.mp4_3",
+        "任务.B.mp4_2",
+        "任务.S1E2.mkv_2",
+        "任务.S1E10.mkv_1",
+        "任务.上.mp4_1",
+        "任务.中.mp4_3",
+        "任务.下.mp4_2",
+        "任务.一百.第3集.mp4_4",
+        "任务.a.mp4_1",
+        "任务.第2期.第9集.mp4_2",
+        "任务.第2期.第10集.mp4_1"
+      ]
+    }
+  ],
+  "taskname": "测试任务",
+  "year": 2026,
+  "sub": [
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "测试任务.S01E05.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "测试任务.S01E05.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "测试任务.S01E01.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "测试任务.S01E03.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": "测试任务.S01E.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "测试任务.S01E05.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "测试任务.S01E12.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "测试任务.S01E.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "测试任务.S01E.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "测试任务.S01E07.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "测试任务.S01E08.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "测试任务.S01E09.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "测试任务.S01E2.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": "测试任务.S01E."
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": "测试任务.S01E.hidden"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "测试任务.S01E5.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "测试任务.S01E1.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "测试任务.S2E10.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": "测试任务.S01E.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": "测试任务.S01E.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "测试任务.S01E{II}.第05期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "测试任务.S01E{II}.第05期.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "测试任务.S01E{II}.第01期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "测试任务.S01E{II}.第03期.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": "测试任务.S01E{II}.第期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "测试任务.S01E{II}.第05期.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "测试任务.S01E{II}.第12期上.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "测试任务.S01E{II}.第期十.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "测试任务.S01E{II}.第期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "测试任务.S01E{II}.第07期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "测试任务.S01E{II}.第08期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "测试任务.S01E{II}.第09期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "测试任务.S01E{II}.第2期中.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": "测试任务.S01E{II}.第期."
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": "测试任务.S01E{II}.第期.hidden"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "测试任务.S01E{II}.第5期.mp4"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "测试任务.S01E{II}.第1期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "测试任务.S2E{II}.第10期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": "测试任务.S01E{II}.第期.mkv"
+    },
+    {
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": "测试任务.S01E{II}.第期.mp4"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": ".20260510..mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "2024.20240501..mp4"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "2024.20240101..mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "...mp4"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": ".20240501..mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": ".20260501..mp4"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "..某综艺.mp4"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "..某综艺.mp4"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "2019..电影.mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "...mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "...mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "...mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "...mp4"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": "..无扩展名."
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": "...hidden"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "..剧名.mp4"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": ".202612..mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "...mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": "...mkv"
+    },
+    {
+      "replace": "{YEAR}.{DATE}.{CHINESE}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": "...mp4"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "01-05--.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "-05--.mp4"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "-01--.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "-03--.mp4"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": "---.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "-05--.mp4"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "-12-上-.mp4"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "--十-.mp4"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "---国语版.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "-07--.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "-08--.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "-09--.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "-2-中-.mp4"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": "---."
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": "---.hidden"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "-5--.mp4"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "-1--.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "2-10--.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": "---.mkv"
+    },
+    {
+      "replace": "{S}-{E}-{PART}-{VER}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": "---.mp4"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "mp4"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "mp4"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "mp4"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "mp4"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "mp4"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "mp4"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": ""
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": "hidden"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "mp4"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": "mkv"
+    },
+    {
+      "replace": "{EXT}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": "mp4"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "S2"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": "S01"
+    },
+    {
+      "replace": "{SXX}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": "S01"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "05"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "05"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "01"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "03"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "05"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "12"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "07"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "08"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "09"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "2"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": ""
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": ""
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "5"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "1"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "10"
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{E}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "上"
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "十"
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "中"
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{PART}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "01"
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "2"
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{S}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "20260510"
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "20240501"
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "20240101"
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": "20240501"
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "20260501"
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "202612"
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{DATE}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "2024"
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "2024"
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "2019"
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{YEAR}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "某综艺"
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "某综艺"
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "电影"
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": "无扩展名"
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "剧名"
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": ""
+    },
+    {
+      "replace": "{CHINESE}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": ""
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{TASKNAME}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": "测试任务"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S01E05.1080p.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.2024.05.01.mp4",
+      "result": "{UNKNOWN}.mp4"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "2024.01.01.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第03集.mp4",
+      "result": "{UNKNOWN}.mp4"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "20240501.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "05-01.mp4",
+      "result": "{UNKNOWN}.mp4"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第12期 上 4K.mp4",
+      "result": "{UNKNOWN}.mp4"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "某综艺 第十期 下.mp4",
+      "result": "{UNKNOWN}.mp4"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "电影.2019.国语版.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.EP07.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show_08_1080p.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "09.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "第2期 中.mp4",
+      "result": "{UNKNOWN}.mp4"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "无扩展名",
+      "result": "{UNKNOWN}."
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": ".hidden",
+      "result": "{UNKNOWN}.hidden"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "剧名.第5集.超前企划.mp4",
+      "result": "{UNKNOWN}.mp4"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "A.1.2.3.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.S2E10.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "Show.1080p.mkv",
+      "result": "{UNKNOWN}.mkv"
+    },
+    {
+      "replace": "{UNKNOWN}.{EXT}",
+      "pattern": "^.*$",
+      "filename": "x.mp4",
+      "result": "{UNKNOWN}.mp4"
+    }
+  ],
+  "dir": [
+    {
+      "taskname": "测试任务",
+      "replace": "{TASKNAME}.{I}.{EXT}",
+      "pattern": "",
+      "dir_files": [
+        {
+          "file_name": "任务.01.mkv",
+          "dir": false,
+          "updated_at": 0
+        },
+        {
+          "file_name": "任务.03.mkv",
+          "dir": false,
+          "updated_at": 0
+        },
+        {
+          "file_name": "无关.mkv",
+          "dir": false,
+          "updated_at": 0
+        }
+      ],
+      "incoming": [
+        {
+          "file_name": "甲.mkv",
+          "file_name_re_in": "测试任务.{I}.mkv",
+          "file_name_re": "测试任务.1.mkv",
+          "updated_at": 1000,
+          "dir": false
+        },
+        {
+          "file_name": "乙.mp4",
+          "file_name_re_in": "测试任务.{I}.mp4",
+          "file_name_re": "测试任务.3.mp4",
+          "updated_at": 2000,
+          "dir": false
+        },
+        {
+          "file_name": "丙.mkv",
+          "file_name_re_in": "测试任务.{I}.mkv",
+          "file_name_re": "测试任务.2.mkv",
+          "updated_at": 3000,
+          "dir": false
+        }
+      ],
+      "dir_after": {
+        "1": "测试任务.{I}.mkv_1000",
+        "2": "测试任务.{I}.mkv_3000",
+        "3": "测试任务.{I}.mp4_2000"
+      }
+    },
+    {
+      "taskname": "测试任务",
+      "replace": "{TASKNAME}.{II}.{EXT}",
+      "pattern": "",
+      "dir_files": [
+        {
+          "file_name": "任务.01.mkv",
+          "dir": false,
+          "updated_at": 0
+        },
+        {
+          "file_name": "任务.02.mkv",
+          "dir": false,
+          "updated_at": 0
+        }
+      ],
+      "incoming": [
+        {
+          "file_name": "新1.mkv",
+          "file_name_re_in": "测试任务.{II}.mkv",
+          "file_name_re": "测试任务.03.mkv",
+          "updated_at": 1000,
+          "dir": false
+        },
+        {
+          "file_name": "新2.mkv",
+          "file_name_re_in": "测试任务.{II}.mkv",
+          "file_name_re": "测试任务.04.mkv",
+          "updated_at": 2000,
+          "dir": false
+        }
+      ],
+      "dir_after": {
+        "1": "任务.{II}.",
+        "2": "任务.{II}.",
+        "3": "测试任务.{II}.mkv_1000",
+        "4": "测试任务.{II}.mkv_2000"
+      }
+    },
+    {
+      "taskname": "测试任务",
+      "replace": "第{I}期.{EXT}",
+      "pattern": "",
+      "dir_files": [
+        {
+          "file_name": "第01期.mp4",
+          "dir": false,
+          "updated_at": 0
+        },
+        {
+          "file_name": "第03期.mp4",
+          "dir": false,
+          "updated_at": 0
+        }
+      ],
+      "incoming": [
+        {
+          "file_name": "a.mp4",
+          "file_name_re_in": "第{I}期.mp4",
+          "file_name_re": "第1期.mp4",
+          "updated_at": 100,
+          "dir": false
+        },
+        {
+          "file_name": "b.mp4",
+          "file_name_re_in": "第{I}期.mp4",
+          "file_name_re": "第2期.mp4",
+          "updated_at": 200,
+          "dir": false
+        }
+      ],
+      "dir_after": {
+        "1": "第{I}期.mp4_100",
+        "2": "第{I}期.mp4_200"
+      }
+    },
+    {
+      "taskname": "测试任务",
+      "replace": "{TASKNAME}.{I}.{EXT}",
+      "pattern": "",
+      "dir_files": [],
+      "incoming": [
+        {
+          "file_name": "x.mkv",
+          "file_name_re_in": "测试任务.{I}.mkv",
+          "file_name_re": "测试任务.3.mkv",
+          "updated_at": 300,
+          "dir": false
+        },
+        {
+          "file_name": "y.mkv",
+          "file_name_re_in": "测试任务.{I}.mkv",
+          "file_name_re": "测试任务.1.mkv",
+          "updated_at": 100,
+          "dir": false
+        },
+        {
+          "file_name": "z.mkv",
+          "file_name_re_in": "测试任务.{I}.mkv",
+          "file_name_re": "测试任务.2.mkv",
+          "updated_at": 200,
+          "dir": false
+        }
+      ],
+      "dir_after": {
+        "1": "测试任务.{I}.mkv_100",
+        "2": "测试任务.{I}.mkv_200",
+        "3": "测试任务.{I}.mkv_300"
+      }
+    },
+    {
+      "taskname": "测试任务",
+      "replace": "{TASKNAME}.{I}.{EXT}",
+      "pattern": "",
+      "dir_files": [
+        {
+          "file_name": "任务.10.mkv",
+          "dir": false,
+          "updated_at": 0
+        }
+      ],
+      "incoming": [
+        {
+          "file_name": "x.mkv",
+          "file_name_re_in": "测试任务.{I}.mkv",
+          "file_name_re": "测试任务.1.mkv",
+          "updated_at": 100,
+          "dir": false
+        }
+      ],
+      "dir_after": {
+        "1": "测试任务.{I}.mkv_100"
+      }
+    },
+    {
+      "taskname": "测试任务",
+      "replace": "{TASKNAME}.第{I}期.第{E}期.{EXT}",
+      "pattern": "",
+      "dir_files": [],
+      "incoming": [
+        {
+          "file_name": "某综艺 第2期 上.mp4",
+          "file_name_re_in": "测试任务.第{I}期.第2期.mp4",
+          "file_name_re": "测试任务.第1期.第2期.mp4",
+          "updated_at": 100,
+          "dir": false
+        },
+        {
+          "file_name": "某综艺 第10期 下.mp4",
+          "file_name_re_in": "测试任务.第{I}期.第10期.mp4",
+          "file_name_re": "测试任务.第2期.第10期.mp4",
+          "updated_at": 200,
+          "dir": false
+        }
+      ],
+      "dir_after": {
+        "1": "测试任务.第{I}期.第2期.mp4_100",
+        "2": "测试任务.第{I}期.第10期.mp4_200"
+      }
+    }
+  ],
+  "exists": [
+    {
+      "filename": "Show.E01.mkv",
+      "filenames": [
+        "Show.E01.mkv",
+        "Other.mkv"
+      ],
+      "ignore_ext": false,
+      "result": "Show.E01.mkv"
+    },
+    {
+      "filename": "Show.E01.mkv",
+      "filenames": [
+        "Show.E01.MKV"
+      ],
+      "ignore_ext": false,
+      "result": ""
+    },
+    {
+      "filename": "Show.E01.mkv",
+      "filenames": [
+        "Show.E01.MKV"
+      ],
+      "ignore_ext": true,
+      "result": "Show.E01"
+    },
+    {
+      "filename": "Show.E01.mkv",
+      "filenames": [
+        "Show.E02.mkv"
+      ],
+      "ignore_ext": true,
+      "result": ""
+    },
+    {
+      "filename": "Show.{I}.mkv",
+      "filenames": [
+        "Show.01.mkv",
+        "Show.02.mkv"
+      ],
+      "ignore_ext": false,
+      "result": ""
+    },
+    {
+      "filename": "Show.{II}.mkv",
+      "filenames": [
+        "Show.05.mkv"
+      ],
+      "ignore_ext": false,
+      "result": "Show.05.mkv"
+    },
+    {
+      "filename": "Show.{I}.mkv",
+      "filenames": [
+        "Show.5.mkv",
+        "Show.05.mkv"
+      ],
+      "ignore_ext": false,
+      "result": "Show.5.mkv"
+    },
+    {
+      "filename": "第{I}期.mp4",
+      "filenames": [
+        "第07期.mp4"
+      ],
+      "ignore_ext": false,
+      "result": ""
+    },
+    {
+      "filename": "archive.tar.gz",
+      "filenames": [
+        "archive.tar.rar"
+      ],
+      "ignore_ext": true,
+      "result": "archive.tar"
+    },
+    {
+      "filename": ".hidden",
+      "filenames": [
+        ".hidden"
+      ],
+      "ignore_ext": false,
+      "result": ".hidden"
+    },
+    {
+      "filename": "a.mkv",
+      "filenames": [
+        ".a.mkv"
+      ],
+      "ignore_ext": true,
+      "result": ""
+    }
+  ]
+}

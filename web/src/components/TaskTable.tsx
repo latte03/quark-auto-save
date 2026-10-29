@@ -1,0 +1,224 @@
+import {
+  MoreHorizontal,
+  Pencil,
+  Play,
+  Trash2,
+  Wrench,
+} from "lucide-react";
+import type { Task } from "../lib/types";
+import { cn } from "../lib/utils";
+import { TaskStatusBadge } from "./TaskStatusBadge";
+import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "./ui/tooltip";
+
+type TaskTableProps = {
+  tasks: Task[];
+  onOpenTask: (task: Task) => void;
+  onRun: (task: Task) => void;
+  onDelete: (task: Task) => void;
+  onRepair: (task: Task) => void;
+  className?: string;
+};
+
+export function TaskTable({
+  tasks,
+  onOpenTask,
+  onRun,
+  onDelete,
+  onRepair,
+  className,
+}: TaskTableProps) {
+  return (
+    <div className={cn("overflow-x-auto", className)}>
+      <table className="w-full border-collapse text-left" aria-label="任务列表">
+        <thead>
+          <tr className="border-b border-line bg-line-soft/35">
+            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted">
+              任务
+            </th>
+            <th className="hidden h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted md:table-cell">
+              保存路径
+            </th>
+            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted">
+              最新
+            </th>
+            <th className="hidden h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted lg:table-cell">
+              下次运行
+            </th>
+            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted">
+              状态
+            </th>
+            <th className="hidden h-8 whitespace-nowrap px-3 text-right text-[12px] font-medium text-muted sm:table-cell">
+              操作
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((task) => {
+            const progress =
+              task.progress.expected > 0
+                ? Math.min(100, (task.progress.saved / task.progress.expected) * 100)
+                : 0;
+            return (
+              <tr
+                key={task.taskname}
+                className={cn(
+                  "group cursor-pointer border-b border-line-soft transition-colors last:border-b-0 hover:bg-brand-soft/25",
+                  task.status === "banned" && "bg-danger-soft/30 hover:bg-danger-soft/50",
+                )}
+                onClick={() => onOpenTask(task)}
+              >
+                <td className="min-w-[160px] px-3 py-2.5">
+                  <div className="flex min-w-0 flex-col">
+                    <div className="flex max-w-[260px] items-center gap-1.5">
+                      <span className="truncate text-[14px] font-medium text-ink">
+                        {task.taskname}
+                      </span>
+                      {task.shareurl_ban ? (
+                        <Wrench className="h-3 w-3 shrink-0 text-danger" />
+                      ) : null}
+                    </div>
+                    <div className="mt-0.5 max-w-[260px] truncate font-mono text-[13px] text-subtle">
+                      {task.pattern}
+                    </div>
+                  </div>
+                </td>
+                <td className="hidden px-3 py-2.5 md:table-cell">
+                  <div className="w-[180px] truncate font-mono text-[13px] text-muted lg:w-[240px] 2xl:w-[300px]">
+                    {task.savepath}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[12px] tabular-nums text-ink">
+                      {task.latest}
+                    </span>
+                    {task.progress.expected > 0 ? (
+                      <div className="hidden items-center gap-1.5 sm:flex">
+                        <div className="h-1 w-12 overflow-hidden rounded-full bg-line">
+                          <div
+                            className={cn(
+                              "h-full rounded-full",
+                              task.status === "banned"
+                                ? "bg-danger"
+                                : task.status === "done"
+                                  ? "bg-muted"
+                                  : "bg-ok",
+                            )}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-[12px] text-subtle">
+                          {task.progress.saved}/{task.progress.expected}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                </td>
+                <td className="hidden whitespace-nowrap px-3 py-2.5 lg:table-cell">
+                  <span className="font-mono text-[12px] text-muted">{task.next_run}</span>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  <TaskStatusBadge status={task.status} />
+                </td>
+                <td className="hidden px-3 py-2.5 sm:table-cell">
+                  <div className="flex items-center justify-end gap-0.5">
+                    {task.status === "banned" ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-7 border-danger/30 px-2 text-[12px] text-danger hover:bg-danger-soft hover:text-danger"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRepair(task);
+                        }}
+                      >
+                        修复
+                      </Button>
+                    ) : (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`运行 ${task.taskname}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onRun(task);
+                              }}
+                            >
+                              <Play className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>运行</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`编辑 ${task.taskname}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onOpenTask(task);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>编辑</TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`更多操作 ${task.taskname}`}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onOpenTask(task)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          编辑任务
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onRun(task)}>
+                          <Play className="h-3.5 w-3.5" />
+                          立即运行
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-danger focus:bg-danger-soft focus:text-danger"
+                          onClick={() => onDelete(task)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          删除任务
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}

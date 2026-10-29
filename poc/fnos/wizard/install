@@ -1,0 +1,24 @@
+[
+  {
+    "stepTitle": "初始化",
+    "items": [
+      {
+        "type": "password",
+        "field": "wizard_password",
+        "label": "WebUI 登录密码",
+        "initValue": "",
+        "rules": [
+          { "required": true, "message": "请设置登录密码" },
+          {
+            "pattern": "^[A-Za-z0-9._@#%+-]{8,64}$",
+            "message": "8-64 位，仅限字母、数字与 ._@#%+-"
+          }
+        ]
+      },
+      {
+        "type": "tips",
+        "helpText": "登录用户名固定为 admin。夸克 Cookie 与任务在安装后到控制台里填写。"
+      }
+    ]
+  }
+]

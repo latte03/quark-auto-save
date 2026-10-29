@@ -1,0 +1,18 @@
+appname=qas
+version=0.3.0
+display_name=QAS 控制台
+desc=自托管夸克自动转存控制台（Go + React）。
+source=thirdparty
+platform=x86
+
+maintainer=agan
+os_min_version=1.2.0
+
+micro_app=true
+desktop_uidir=ui
+desktop_applaunchname=qas.main
+
+service_port=8710
+checkport=true
+ctl_stop=true
+changelog=新增内置本地下载（任务级开关/目录、Range 续传、并发、空间阈值、同名覆盖）与文件页下载队列；新增落盘的运行日志页，可配置保留条数并自动清理；任务弹窗试运行不再关闭；插件覆盖还原；下拉统一为 Radix Select。

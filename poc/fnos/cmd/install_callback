@@ -1,0 +1,29 @@
+#!/bin/bash
+set -u
+
+fail() {
+  echo "$1" > "${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+  exit 1
+}
+
+password="${wizard_password:-}"
+case "$password" in
+  *[!A-Za-z0-9._@#%+-]*) fail "登录密码包含不支持的字符" ;;
+esac
+if [ "${#password}" -lt 8 ] || [ "${#password}" -gt 64 ]; then
+  fail "登录密码需为 8-64 位"
+fi
+
+mkdir -p "$TRIM_PKGETC" "$TRIM_PKGVAR" || fail "无法创建应用目录"
+
+if [ ! -f "$TRIM_PKGETC/config.json" ]; then
+  umask 077
+  printf '{\n  "webui": {\n    "username": "admin",\n    "password": "%s"\n  },\n  "crontab": "0 8,18,20 * * *"\n}\n' \
+    "$password" > "$TRIM_PKGETC/config.json" || fail "无法写入配置文件"
+fi
+
+if [ "$(id -u)" = "0" ] && [ -n "${TRIM_USERNAME:-}" ]; then
+  chown -R "$TRIM_USERNAME:${TRIM_GROUPNAME:-$TRIM_USERNAME}" "$TRIM_PKGETC" "$TRIM_PKGVAR" 2>/dev/null || true
+fi
+
+exit 0

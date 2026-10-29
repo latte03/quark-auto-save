@@ -1,0 +1,406 @@
+{
+  "notes": "由 real_tasks.json 派生：目标目录预置已存在文件，用于对照跳过、忽略后缀、{I} 续号与 update_subdir 递归",
+  "captured_at": "2026-10-28T18:14:07+08:00",
+  "magic_regex": {
+    "$BLACK_WORD": {
+      "pattern": "^(?!.*纯享)(?!.*加更)(?!.*超前企划)(?!.*训练室)(?!.*蒸蒸日上).*",
+      "replace": ""
+    },
+    "$SHOW_MAGIC": {
+      "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}"
+    },
+    "$TV_MAGIC": {
+      "pattern": ".*\\.(mp4|mkv|mov|m4v|avi|mpeg|ts)$",
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}"
+    },
+    "$TV_REGEX": {
+      "pattern": ".*?([Ss]\\d{1,2})?(?:[第EePpXx\\.\\-\\_\\( ]{1,2}|^)(\\d{1,3})(?!\\d).*?\\.(mp4|mkv)",
+      "replace": "\\1E\\2.\\3"
+    }
+  },
+  "tasks": [
+    {
+      "taskname": "测试-魔法匹配剧集（这是一组有效分享，配置CK后可测试任务是否正常）",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
+      "savepath": "/夸克自动转存测试/剧集",
+      "pattern": "$TV_REGEX",
+      "update_subdir": "4k|1080p",
+      "enddate": "2099-01-30"
+    },
+    {
+      "taskname": "测试-综艺命名",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-%E5%A4%B8%E5%85%8B%E8%87%AA%E5%8A%A8%E8%BD%AC%E5%AD%98%E6%B5%8B%E8%AF%95/71df3902f42d4270a58c0eb12aa2b014-%E7%BB%BC%E8%89%BA%E5%91%BD%E5%90%8D",
+      "savepath": "/夸克自动转存测试/综艺命名",
+      "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
+      "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}"
+    },
+    {
+      "taskname": "测试-去广告字符",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试/680d91e490814da0927c38b432f88edc-带广告文件夹",
+      "savepath": "/夸克自动转存测试/去广告字符",
+      "pattern": "【XX电影网】(.*)\\.(mp4|mkv)",
+      "replace": "\\1.\\2",
+      "enddate": "2099-01-30"
+    },
+    {
+      "taskname": "冲突-递归子目录",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
+      "savepath": "/夸克自动转存测试/冲突",
+      "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
+      "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}",
+      "update_subdir": "综艺命名"
+    },
+    {
+      "taskname": "冲突-忽略后缀",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试/680d91e490814da0927c38b432f88edc-带广告文件夹",
+      "savepath": "/夸克自动转存测试/冲突忽略",
+      "pattern": "【XX电影网】(.*)\\.(mp4|mkv)",
+      "replace": "\\1.\\2",
+      "ignore_extension": true
+    },
+    {
+      "taskname": "冲突-编号续接",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-%E5%A4%B8%E5%85%8B%E8%87%AA%E5%8A%A8%E8%BD%AC%E5%AD%98%E6%B5%8B%E8%AF%95/71df3902f42d4270a58c0eb12aa2b014-%E7%BB%BC%E8%89%BA%E5%91%BD%E5%90%8D",
+      "savepath": "/夸克自动转存测试/冲突编号",
+      "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
+      "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}"
+    }
+  ],
+  "share": {
+    "680d91e490814da0927c38b432f88edc": [
+      {
+        "fid": "6c0444af0dfe4f889475a254cccb8fa2",
+        "share_fid_token": "",
+        "file_name": "杂七杂八文件.jpg",
+        "dir": false,
+        "size": 0,
+        "updated_at": 1711903939161,
+        "obj_category": "default",
+        "include_items": 0
+      },
+      {
+        "fid": "f68d62dc1fd24596bf2df71f0f0efeb2",
+        "share_fid_token": "",
+        "file_name": "【XX电影网】剧名.03.mkv",
+        "dir": false,
+        "size": 0,
+        "updated_at": 1711898765132,
+        "obj_category": "default",
+        "include_items": 0
+      }
+    ],
+    "71df3902f42d4270a58c0eb12aa2b014": [
+      {
+        "fid": "006d0d6424b24abea9cc072fa1508a80",
+        "share_fid_token": "",
+        "file_name": "2025-03-21 第1期上：30位姐姐舞台首秀 4K.mp4",
+        "dir": false,
+        "size": 2075096,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "12ed3161a3de4098b3c0491bd3530ca7",
+        "share_fid_token": "",
+        "file_name": "2025-04-03 蒸蒸日上的姐姐：花式团建 4K.mp4",
+        "dir": false,
+        "size": 1390882,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "20b33e4811db49c2846c1e57043678d4",
+        "share_fid_token": "",
+        "file_name": "2025-03-19 超前企划：30位姐姐初亮相 4K.mp4",
+        "dir": false,
+        "size": 1276892,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "228a7e5649254a62bba7740ef94a51a7",
+        "share_fid_token": "",
+        "file_name": "2025-03-21 舞台纯享版：初舞台各放大招 4K.mp4",
+        "dir": false,
+        "size": 1213890,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "45ee445d40c64685bf1a9299c9243e46",
+        "share_fid_token": "",
+        "file_name": "2025-03-21 第1期中：初舞台齐争Super A 4K.mp4",
+        "dir": false,
+        "size": 1108313,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "54601e39ebea4a2080ee56c6e4c4484f",
+        "share_fid_token": "",
+        "file_name": "2025-04-04 第3期下：小考赛前秀双双来袭 4K.mp4",
+        "dir": false,
+        "size": 1340604,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "5b48497cf59e4fbc9d26aa723fa8b7e9",
+        "share_fid_token": "",
+        "file_name": "2025-04-04 第3期上：二公组队刺激反转 4K.mp4",
+        "dir": false,
+        "size": 1397759,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "5b79de0d809141b9bbf09091eb1ab1f0",
+        "share_fid_token": "",
+        "file_name": "2025-03-27 蒸蒸日上的姐姐：吴宣仪挑战 4K.mp4",
+        "dir": false,
+        "size": 1345361,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "8eb7255e61874ca5b3fca362ab500d34",
+        "share_fid_token": "",
+        "file_name": "2025-03-28 第2期下：各团争夺乘风领衔团 4K.mp4",
+        "dir": false,
+        "size": 2017517,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "9469759f6d2840d1b56241b48cf902a8",
+        "share_fid_token": "",
+        "file_name": "2025-03-23 加更版：三十位姐姐初见面 4K.mp4",
+        "dir": false,
+        "size": 1972756,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "b061c66725594597887a1305d551e8cb",
+        "share_fid_token": "",
+        "file_name": "2025-03-26 训练室全纪录：李晟《野人》 4K.mp4",
+        "dir": false,
+        "size": 1889598,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "b9a454943a0c43f0a7fa14e65e9403a9",
+        "share_fid_token": "",
+        "file_name": "2025-03-27 姐姐来团播：姐姐开启惊喜团播 4K.mp4",
+        "dir": false,
+        "size": 1251372,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "bd30cf00320a458184b6afb1e6a99a10",
+        "share_fid_token": "",
+        "file_name": "2025-03-30 加更版：姐姐们方言版你画我猜 4K.mp4",
+        "dir": false,
+        "size": 1272293,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "c99e41f44b544e509cfa96af1b4b5e15",
+        "share_fid_token": "",
+        "file_name": "2025-03-21 第1期下：一公分组评级小考 4K.mp4",
+        "dir": false,
+        "size": 1979870,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "cb33ca46de0546159432f6e579e6709e",
+        "share_fid_token": "",
+        "file_name": "2025-03-27 一公抢先看：赛前秀抢附加分 4K.mp4",
+        "dir": false,
+        "size": 1972733,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "cd7cc452e9eb4758b37651d210ca1a69",
+        "share_fid_token": "",
+        "file_name": "2025-03-29 舞台纯享版：第一次公演舞台 4K.mp4",
+        "dir": false,
+        "size": 1290593,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "d36a683dac9f46b7a6273a2ff0b84a28",
+        "share_fid_token": "",
+        "file_name": "2025-03-28 第2期上：一公赛道抢位赛 4K.mp4",
+        "dir": false,
+        "size": 1417077,
+        "updated_at": 1746261900362,
+        "obj_category": "video",
+        "include_items": 0
+      }
+    ],
+    "7e25ddd87cf64443b637125478733295": [
+      {
+        "fid": "71df3902f42d4270a58c0eb12aa2b014",
+        "share_fid_token": "",
+        "file_name": "综艺命名",
+        "dir": true,
+        "size": 0,
+        "updated_at": 1746261938823,
+        "obj_category": "",
+        "include_items": 17
+      },
+      {
+        "fid": "680d91e490814da0927c38b432f88edc",
+        "share_fid_token": "",
+        "file_name": "带广告文件夹",
+        "dir": true,
+        "size": 0,
+        "updated_at": 1713704436001,
+        "obj_category": "",
+        "include_items": 2
+      },
+      {
+        "fid": "0ecad98fc1694406bd9c42350c4ef909",
+        "share_fid_token": "",
+        "file_name": "quark-save-check.mp4",
+        "dir": false,
+        "size": 775,
+        "updated_at": 1746865670848,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "39d2e53452f84353afc466460551383c",
+        "share_fid_token": "",
+        "file_name": "剧名.03.mp4",
+        "dir": false,
+        "size": 42,
+        "updated_at": 1711901602620,
+        "obj_category": "video",
+        "include_items": 0
+      },
+      {
+        "fid": "50b849f5c03142629bbc1b088ccb5572",
+        "share_fid_token": "",
+        "file_name": "文本2.txt",
+        "dir": false,
+        "size": 42,
+        "updated_at": 1711898081772,
+        "obj_category": "video",
+        "include_items": 0
+      }
+    ]
+  },
+  "dest": {
+    "/夸克自动转存测试/不会运行": [],
+    "/夸克自动转存测试/不会运行/带广告文件夹": [],
+    "/夸克自动转存测试/不会运行/综艺命名": [],
+    "/夸克自动转存测试/剧集": [],
+    "/夸克自动转存测试/剧集/带广告文件夹": [],
+    "/夸克自动转存测试/剧集/综艺命名": [],
+    "/夸克自动转存测试/去广告字符": [],
+    "/夸克自动转存测试/综艺命名": [],
+    "/夸克自动转存测试/冲突": [
+      {
+        "fid": "dest-dir-show",
+        "share_fid_token": "",
+        "file_name": "综艺命名",
+        "dir": true,
+        "size": 0,
+        "updated_at": 1,
+        "obj_category": "",
+        "include_items": 0
+      }
+    ],
+    "/夸克自动转存测试/冲突/综艺命名": [
+      {
+        "fid": "dest-existing-0",
+        "share_fid_token": "",
+        "file_name": "01.测试-综艺命名.20250321.第1期上.mp4",
+        "dir": false,
+        "size": 0,
+        "updated_at": 1,
+        "obj_category": "",
+        "include_items": 0
+      },
+      {
+        "fid": "dest-existing-1",
+        "share_fid_token": "",
+        "file_name": "02.测试-综艺命名.20250321.第1期中.mp4",
+        "dir": false,
+        "size": 0,
+        "updated_at": 1,
+        "obj_category": "",
+        "include_items": 0
+      },
+      {
+        "fid": "dest-existing-2",
+        "share_fid_token": "",
+        "file_name": "2025-03-21 第1期下：一公分组评级小考 4K.mp4",
+        "dir": false,
+        "size": 0,
+        "updated_at": 1,
+        "obj_category": "",
+        "include_items": 0
+      }
+    ],
+    "/夸克自动转存测试/冲突忽略": [
+      {
+        "fid": "dest-ad-nfo",
+        "share_fid_token": "",
+        "file_name": "剧名.03.nfo",
+        "dir": false,
+        "size": 0,
+        "updated_at": 1,
+        "obj_category": "",
+        "include_items": 0
+      }
+    ],
+    "/夸克自动转存测试/冲突编号": [
+      {
+        "fid": "dest-num-1",
+        "share_fid_token": "",
+        "file_name": "01.测试-综艺命名.20250321.第1期上.mp4",
+        "dir": false,
+        "size": 0,
+        "updated_at": 1,
+        "obj_category": "",
+        "include_items": 0
+      },
+      {
+        "fid": "dest-num-2",
+        "share_fid_token": "",
+        "file_name": "02.测试-综艺命名.20250321.第1期中.mp4",
+        "dir": false,
+        "size": 0,
+        "updated_at": 1,
+        "obj_category": "",
+        "include_items": 0
+      }
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+#!/bin/bash
+set -u
+if [ -f "${TRIM_PKGVAR:-/var/apps/qas/var}/qas.pid" ]; then
+  kill "$(cat "${TRIM_PKGVAR:-/var/apps/qas/var}/qas.pid")" 2>/dev/null
+  rm -f "${TRIM_PKGVAR:-/var/apps/qas/var}/qas.pid"
+fi
+exit 0
