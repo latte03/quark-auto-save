@@ -1,6 +1,12 @@
 export type Page = "overview" | "tasks" | "files" | "runs" | "settings";
 
-export type TaskStatus = "tracking" | "waiting" | "done" | "banned";
+export type TaskStatus =
+  | "tracking"
+  | "waiting"
+  | "done"
+  | "banned"
+  | "once"
+  | "once_done";
 
 export type TaskProgress = {
   saved: number;
@@ -15,12 +21,17 @@ export type Task = {
   savepath: string;
   pattern: string;
   replace: string;
+  magic_id?: string;
+  magic_name?: string;
   update_subdir?: string;
   update_subdir_resave_mode?: boolean;
   ignore_extension?: boolean;
   startfid?: string;
   enddate?: string;
   runweek: number[];
+  runtime?: string[];
+  mode?: "scheduled" | "once";
+  once_done_at?: string;
   addition: Record<string, Record<string, string | number | boolean>>;
   shareurl_ban?: string;
   local_download?: TaskDownload;
@@ -51,6 +62,8 @@ export type DownloadJob = {
 };
 
 export type MagicRegex = {
+  id: string;
+  name: string;
   pattern: string;
   replace: string;
 };
@@ -122,7 +135,7 @@ export type AppConfig = {
   webui: { username: string };
   push_config: Record<string, string | number | boolean>;
   plugins: Record<string, PluginConfig>;
-  magic_regex: Record<string, MagicRegex>;
+  magic_regex: MagicRegex[];
   source: SourceConfig;
   local_download: LocalDownload;
   run_logs: RunLogSettings;

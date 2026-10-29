@@ -41,25 +41,25 @@ export function TaskTable({
 }: TaskTableProps) {
   return (
     <div className={cn("overflow-x-auto", className)}>
-      <table className="w-full border-collapse text-left" aria-label="任务列表">
+      <table className="w-full min-w-[860px] border-collapse text-left" aria-label="任务列表">
         <thead>
           <tr className="border-b border-line bg-line-soft/35">
-            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted">
+            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted-ink">
               任务
             </th>
-            <th className="hidden h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted md:table-cell">
+            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted-ink">
               保存路径
             </th>
-            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted">
+            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted-ink">
               最新
             </th>
-            <th className="hidden h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted lg:table-cell">
+            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted-ink">
               下次运行
             </th>
-            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted">
+            <th className="h-8 whitespace-nowrap px-3 text-[12px] font-medium text-muted-ink">
               状态
             </th>
-            <th className="hidden h-8 whitespace-nowrap px-3 text-right text-[12px] font-medium text-muted sm:table-cell">
+            <th className="h-8 whitespace-nowrap px-3 text-right text-[12px] font-medium text-muted-ink">
               操作
             </th>
           </tr>
@@ -81,21 +81,26 @@ export function TaskTable({
               >
                 <td className="min-w-[160px] px-3 py-2.5">
                   <div className="flex min-w-0 flex-col">
-                    <div className="flex max-w-[260px] items-center gap-1.5">
+                    <div className="flex max-w-[220px] items-center gap-1.5">
                       <span className="truncate text-[14px] font-medium text-ink">
                         {task.taskname}
                       </span>
+                      {task.mode === "once" ? (
+                        <span className="shrink-0 rounded border border-line px-1 text-[11px] leading-4 text-subtle">
+                          单次
+                        </span>
+                      ) : null}
                       {task.shareurl_ban ? (
                         <Wrench className="h-3 w-3 shrink-0 text-danger" />
                       ) : null}
                     </div>
-                    <div className="mt-0.5 max-w-[260px] truncate font-mono text-[13px] text-subtle">
-                      {task.pattern}
+                    <div className="mt-0.5 max-w-[220px] truncate font-mono text-[13px] text-subtle">
+                      {task.magic_name || task.pattern}
                     </div>
                   </div>
                 </td>
-                <td className="hidden px-3 py-2.5 md:table-cell">
-                  <div className="w-[180px] truncate font-mono text-[13px] text-muted lg:w-[240px] 2xl:w-[300px]">
+                <td className="px-3 py-2.5">
+                  <div className="w-[180px] truncate font-mono text-[13px] text-muted-ink 2xl:w-[260px]">
                     {task.savepath}
                   </div>
                 </td>
@@ -105,14 +110,14 @@ export function TaskTable({
                       {task.latest}
                     </span>
                     {task.progress.expected > 0 ? (
-                      <div className="hidden items-center gap-1.5 sm:flex">
+                      <div className="flex items-center gap-1.5">
                         <div className="h-1 w-12 overflow-hidden rounded-full bg-line">
                           <div
                             className={cn(
-                              "h-full rounded-full",
+                              "h-full rounded-full transition-[width] duration-500 ease-out",
                               task.status === "banned"
                                 ? "bg-danger"
-                                : task.status === "done"
+                                : task.status === "done" || task.status === "once_done"
                                   ? "bg-muted"
                                   : "bg-ok",
                             )}
@@ -126,13 +131,13 @@ export function TaskTable({
                     ) : null}
                   </div>
                 </td>
-                <td className="hidden whitespace-nowrap px-3 py-2.5 lg:table-cell">
-                  <span className="font-mono text-[12px] text-muted">{task.next_run}</span>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  <span className="font-mono text-[12px] text-muted-ink">{task.next_run}</span>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5">
                   <TaskStatusBadge status={task.status} />
                 </td>
-                <td className="hidden px-3 py-2.5 sm:table-cell">
+                <td className="px-3 py-2.5">
                   <div className="flex items-center justify-end gap-0.5">
                     {task.status === "banned" ? (
                       <Button
@@ -149,50 +154,56 @@ export function TaskTable({
                     ) : (
                       <>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`运行 ${task.taskname}`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onRun(task);
-                              }}
-                            >
-                              <Play className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={`运行 ${task.taskname}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onRun(task);
+                                }}
+                              >
+                                <Play className="h-3.5 w-3.5" />
+                              </Button>
+                            }
+                          />
                           <TooltipContent>运行</TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`编辑 ${task.taskname}`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onOpenTask(task);
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={`编辑 ${task.taskname}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onOpenTask(task);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            }
+                          />
                           <TooltipContent>编辑</TooltipContent>
                         </Tooltip>
                       </>
                     )}
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`更多操作 ${task.taskname}`}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`更多操作 ${task.taskname}`}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </Button>
+                        }
+                      />
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => onOpenTask(task)}>
                           <Pencil className="h-3.5 w-3.5" />

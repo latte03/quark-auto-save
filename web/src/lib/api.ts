@@ -16,6 +16,13 @@ export class ApiError extends Error {
   }
 }
 
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Called once per 401 so the shell can re-check the session and fall back to login. */
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -35,6 +42,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     payload = await response.json();
   } catch {
     payload = null;
+  }
+  // A wrong password also answers 401, but it must stay on the login form.
+  if (response.status === 401 && path !== "/api/login") {
+    unauthorizedHandler?.();
   }
   if (!response.ok || payload?.success === false) {
     throw new ApiError(
@@ -86,7 +97,7 @@ function normalizeConfig(raw: AppConfig): AppConfig {
     next_runs: raw.next_runs ?? [],
     push_config: raw.push_config ?? {},
     plugins: raw.plugins ?? {},
-    magic_regex: raw.magic_regex ?? {},
+    magic_regex: raw.magic_regex ?? [],
     plugin_status: raw.plugin_status ?? {},
     webui: raw.webui ?? { username: "admin" },
     source: {
@@ -168,6 +179,43 @@ export async function saveConfig(partial: Partial<AppConfig>) {
       body: JSON.stringify(partial),
     }),
   );
+}
+
+export function renameMagicRule(id: string, name: string) {
+  return post<{ tasks: import("./types").Task[] }>("/api/magic/rename", {
+    id,
+    name,
+  });
+}
+
+// ---------- quark login ----------
+
+export type QuarkQR = { id: string; qr_url: string; expires_in: number };
+
+export function startQuarkQR() {
+  return post<QuarkQR>("/api/quark/qr", {});
+}
+
+export type QuarkQRStatus = {
+  status: "waiting" | "confirmed" | "expired" | "error";
+  nickname?: string;
+  cookies?: string[];
+  message?: string;
+};
+
+export function pollQuarkQR(id: string) {
+  return request<QuarkQRStatus>(`/api/quark/qr/${encodeURIComponent(id)}`);
+}
+
+export type QuarkAccount = {
+  ok: boolean;
+  nickname?: string;
+  checked_at?: string;
+  message?: string;
+};
+
+export function getQuarkAccount() {
+  return request<QuarkAccount>("/api/quark/account");
 }
 
 // ---------- tasks ----------
@@ -282,6 +330,7 @@ export type RenamePreviewItem = {
 
 export function previewRename(payload: {
   taskname: string;
+  magic_id?: string;
   pattern: string;
   replace: string;
   files: string[];

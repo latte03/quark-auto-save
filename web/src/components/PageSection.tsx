@@ -22,24 +22,28 @@ export function PageSection({
     <section
       id={id}
       className={cn(
-        "scroll-mt-20 overflow-hidden rounded-panel border border-line bg-panel lg:scroll-mt-32",
+        "scroll-mt-16 overflow-hidden rounded-panel bg-panel shadow-panel",
         className,
       )}
     >
       {title ? (
-        <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
+        <div className="flex flex-col gap-2.5 px-4 pb-2.5 pt-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <h2 className="text-[14px] font-semibold text-ink">{title}</h2>
             {description ? (
-              <p className="mt-0.5 text-[12px] leading-4 text-muted">
+              <p className="mt-0.5 text-[12px] leading-4 text-muted-ink">
                 {description}
               </p>
             ) : null}
           </div>
-          {action ? <div className="shrink-0">{action}</div> : null}
+          {action ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div>
+          ) : null}
         </div>
       ) : null}
-      <div className={cn("px-4 py-3.5", bodyClassName)}>{children}</div>
+      <div className={cn("px-4 pb-3.5", title ? undefined : "pt-3.5", bodyClassName)}>
+        {children}
+      </div>
     </section>
   );
 }

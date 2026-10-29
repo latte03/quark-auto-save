@@ -4,6 +4,7 @@ import type { RunView, Task } from "../lib/types";
 import { cn } from "../lib/utils";
 import { AlertStrip } from "../components/AlertStrip";
 import { EmptyState } from "../components/EmptyState";
+import { PageHeader } from "../components/PageHeader";
 import { TaskTable } from "../components/TaskTable";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -26,7 +27,28 @@ const filterLabels: Record<TaskFilter, string> = {
   banned: "失效",
 };
 
-const statusOrder = { banned: 0, waiting: 1, tracking: 2, done: 3 };
+const statusOrder: Record<Task["status"], number> = {
+  banned: 0,
+  once: 1,
+  waiting: 2,
+  tracking: 3,
+  done: 4,
+  once_done: 5,
+};
+
+// One-shot tasks count as "waiting" until they run and as "done" afterwards.
+function inFilter(status: Task["status"], filter: TaskFilter): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "waiting":
+      return status === "waiting" || status === "once";
+    case "done":
+      return status === "done" || status === "once_done";
+    default:
+      return status === filter;
+  }
+}
 
 type TasksPageProps = {
   tasks: Task[];
@@ -62,7 +84,7 @@ export function TasksPage({
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     const list = tasks.filter((task) => {
-      if (filter !== "all" && task.status !== filter) return false;
+      if (!inFilter(task.status, filter)) return false;
       if (!keyword) return true;
       return (
         task.taskname.toLowerCase().includes(keyword) ||
@@ -87,13 +109,17 @@ export function TasksPage({
   const counts: Record<TaskFilter, number> = {
     all: tasks.length,
     tracking: tasks.filter((task) => task.status === "tracking").length,
-    waiting: tasks.filter((task) => task.status === "waiting").length,
-    done: tasks.filter((task) => task.status === "done").length,
+    waiting: tasks.filter((task) => inFilter(task.status, "waiting")).length,
+    done: tasks.filter((task) => inFilter(task.status, "done")).length,
     banned: bannedCount,
   };
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="任务"
+        description="每个任务对应一个分享链接，按排程追更或只执行一次。"
+      />
       {bannedCount > 0 ? (
         <AlertStrip
           tone="warn"
@@ -104,8 +130,8 @@ export function TasksPage({
         />
       ) : null}
 
-      <section className="overflow-hidden rounded-panel border border-line bg-panel">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">
+      <section className="overflow-hidden rounded-panel bg-panel shadow-panel">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-1">
             {(Object.keys(filterLabels) as TaskFilter[]).map((key) => (
               <button
@@ -115,7 +141,7 @@ export function TasksPage({
                   "flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors",
                   filter === key
                     ? "bg-brand-soft font-medium text-brand-ink"
-                    : "text-muted hover:bg-line-soft hover:text-ink",
+                    : "text-muted-ink hover:bg-line-soft hover:text-ink",
                 )}
               >
                 {filterLabels[key]}
@@ -140,7 +166,16 @@ export function TasksPage({
                 className="h-7 w-[190px] pl-8 text-[12px]"
               />
             </div>
-            <Select value={sort} onValueChange={(value) => setSort(value as Sort)}>
+            <Select
+              value={sort}
+              items={[
+                { value: "recent", label: "默认顺序" },
+                { value: "name", label: "名称" },
+                { value: "next", label: "下次运行" },
+                { value: "status", label: "状态" },
+              ]}
+              onValueChange={(value) => value && setSort(value as Sort)}
+            >
               <SelectTrigger className="h-7 w-[118px] text-[12px]" aria-label="排序">
                 <SelectValue />
               </SelectTrigger>
@@ -182,11 +217,8 @@ export function TasksPage({
           />
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-line px-3 py-2 font-mono text-[12px] text-subtle">
-          <span>
-            显示 {filtered.length} / {tasks.length} 个任务 · 点击行编辑
-          </span>
-          <span className="hidden sm:inline">悬停显示快捷操作</span>
+        <div className="px-3 py-2 font-mono text-[12px] text-subtle">
+          显示 {filtered.length} / {tasks.length} 个任务
         </div>
       </section>
 

@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { Loader2, LogIn } from "lucide-react";
-import { Field } from "../components/ui/field";
+import { BrandMark } from "../components/BrandMark";
+import { Field, FieldLabel } from "../components/ui/field";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 
 type LoginPageProps = {
   version: string;
+  notice?: string;
   onLogin: (username: string, password: string) => Promise<void>;
 };
 
-export function LoginPage({ version, onLogin }: LoginPageProps) {
+export function LoginPage({ version, notice, onLogin }: LoginPageProps) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -33,9 +35,7 @@ export function LoginPage({ version, onLogin }: LoginPageProps) {
     <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
       <div className="w-full max-w-[380px]">
         <div className="mb-5 flex items-center gap-2.5">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-[15px] font-bold text-white">
-            夸
-          </div>
+          <BrandMark className="h-9 w-9" />
           <div>
             <div className="text-[15px] font-semibold tracking-wide text-ink">
               夸克自动转存
@@ -46,18 +46,28 @@ export function LoginPage({ version, onLogin }: LoginPageProps) {
           </div>
         </div>
 
+        {notice ? (
+          <div
+            role="status"
+            className="mb-3 flex items-center gap-2 rounded-md bg-warn-soft px-3 py-2 text-[12px] text-warn"
+          >
+            {notice}
+          </div>
+        ) : null}
+
         <form
           onSubmit={submit}
-          className="rounded-panel border border-line bg-panel p-5 shadow-sm"
+          className="rounded-panel border border-line bg-panel p-5 shadow-panel"
         >
           <div className="mb-4">
-            <h1 className="text-[14px] font-semibold text-ink">登录控制台</h1>
-            <p className="mt-1 text-[12px] leading-5 text-muted">
+            <h1 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">登录控制台</h1>
+            <p className="mt-1 text-[12px] leading-5 text-muted-ink">
               使用配置文件里的 WebUI 账号。首次启动时随机密码会打印在服务端日志里。
             </p>
           </div>
           <div className="space-y-3">
-            <Field label="用户名" htmlFor="login-username">
+            <Field>
+              <FieldLabel htmlFor="login-username">用户名</FieldLabel>
               <Input
                 id="login-username"
                 name="username"
@@ -67,7 +77,8 @@ export function LoginPage({ version, onLogin }: LoginPageProps) {
                 placeholder="admin"
               />
             </Field>
-            <Field label="密码" htmlFor="login-password">
+            <Field>
+              <FieldLabel htmlFor="login-password">密码</FieldLabel>
               <Input
                 id="login-password"
                 name="password"

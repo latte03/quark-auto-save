@@ -19,16 +19,16 @@ export function AlertStrip({
   className,
 }: AlertStripProps) {
   const styles = {
-    warn: "border-warn/20 bg-warn-soft text-warn",
-    danger: "border-danger/20 bg-danger-soft text-danger",
-    ok: "border-ok/20 bg-ok-soft text-ok",
+    warn: "bg-warn-soft text-warn",
+    danger: "bg-danger-soft text-danger",
+    ok: "bg-ok-soft text-ok",
   }[tone];
   const Icon = tone === "ok" ? CheckCircle2 : AlertTriangle;
 
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-panel border px-3.5 py-2.5",
+        "flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-panel px-3.5 py-2.5",
         styles,
         className,
       )}

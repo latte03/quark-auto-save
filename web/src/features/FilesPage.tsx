@@ -24,6 +24,7 @@ import { Badge } from "../components/ui/badge";
 import { formatBytes } from "../lib/mock";
 import { cn } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
+import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui/button";
 import {
   Dialog,
@@ -35,9 +36,11 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
+import { Skeleton } from "../components/ui/skeleton";
+import type { ToastTone } from "../components/Toast";
 
 type FilesPageProps = {
-  onNotify: (message: string, tone?: "info" | "ok" | "warn") => void;
+  onNotify: (message: string, tone?: ToastTone) => void;
 };
 
 const categoryLabels: Record<string, string> = {
@@ -91,6 +94,9 @@ export function FilesPage({ onNotify }: FilesPageProps) {
     async (target: string, until?: (list: BrowseEntry[]) => boolean) => {
       setLoading(true);
       setError("");
+      // Mutations poll with `until` and keep the current rows visible; plain
+      // navigation swaps the skeleton in so the old directory never lingers.
+      if (!until) setEntries([]);
       try {
         let result = await browse(target);
         // Quark's directory listing can trail a write by a moment; poll a few
@@ -151,7 +157,7 @@ export function FilesPage({ onNotify }: FilesPageProps) {
       setRenameTarget(null);
       await load(path, (list) => list.some((entry) => entry.name === name));
     } catch (cause) {
-      onNotify(cause instanceof Error ? cause.message : "重命名失败", "warn");
+      onNotify(cause instanceof Error ? cause.message : "重命名失败", "error");
     } finally {
       setBusy(false);
     }
@@ -167,7 +173,7 @@ export function FilesPage({ onNotify }: FilesPageProps) {
       setDeleteTarget(null);
       await load(path, (list) => !list.some((entry) => entry.fid === removedFID));
     } catch (cause) {
-      onNotify(cause instanceof Error ? cause.message : "删除失败", "warn");
+      onNotify(cause instanceof Error ? cause.message : "删除失败", "error");
     } finally {
       setBusy(false);
     }
@@ -190,7 +196,7 @@ export function FilesPage({ onNotify }: FilesPageProps) {
       setMkdirOpen(false);
       await load(path, (list) => list.some((entry) => entry.name === name));
     } catch (cause) {
-      onNotify(cause instanceof Error ? cause.message : "新建文件夹失败", "warn");
+      onNotify(cause instanceof Error ? cause.message : "新建文件夹失败", "error");
     } finally {
       setBusy(false);
     }
@@ -202,10 +208,14 @@ export function FilesPage({ onNotify }: FilesPageProps) {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="文件"
+        description="夸克网盘目录与本地下载队列。"
+      />
       {jobs.length > 0 ? (
-        <section className="overflow-hidden rounded-panel border border-line bg-panel">
-          <div className="flex items-center gap-2 border-b border-line px-3 py-2.5">
-            <Download className="h-4 w-4 text-muted" strokeWidth={1.7} />
+        <section className="overflow-hidden rounded-panel bg-panel shadow-panel">
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <Download className="h-4 w-4 text-muted-ink" strokeWidth={1.7} />
             <h2 className="text-[14px] font-semibold text-ink">下载队列</h2>
             <span className="ml-auto font-mono text-[12px] text-subtle">
               {running > 0 ? `${running} 个进行中` : "已空闲"}
@@ -258,7 +268,7 @@ export function FilesPage({ onNotify }: FilesPageProps) {
                     <div
                       className={cn(
                         "mt-1 truncate text-[11px]",
-                        job.status === "failed" ? "text-danger" : "text-muted",
+                        job.status === "failed" ? "text-danger" : "text-muted-ink",
                       )}
                     >
                       {job.message}
@@ -270,8 +280,8 @@ export function FilesPage({ onNotify }: FilesPageProps) {
           </div>
         </section>
       ) : null}
-      <section className="overflow-hidden rounded-panel border border-line bg-panel">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">
+      <section className="overflow-hidden rounded-panel bg-panel shadow-panel">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
           {path !== "/" ? (
             <Button
               variant="ghost"
@@ -287,7 +297,7 @@ export function FilesPage({ onNotify }: FilesPageProps) {
               onClick={() => setPath("/")}
               className={cn(
                 "rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
-                path === "/" ? "font-medium text-ink" : "text-muted hover:text-ink",
+                path === "/" ? "font-medium text-ink" : "text-muted-ink hover:text-ink",
               )}
             >
               根目录
@@ -304,7 +314,7 @@ export function FilesPage({ onNotify }: FilesPageProps) {
                       "max-w-[220px] truncate rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
                       current
                         ? "font-medium text-ink"
-                        : "text-muted hover:text-ink",
+                        : "text-muted-ink hover:text-ink",
                     )}
                   >
                     {segment}
@@ -352,9 +362,16 @@ export function FilesPage({ onNotify }: FilesPageProps) {
             }
           />
         ) : loading && sorted.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-[12px] text-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            正在读取…
+          <div aria-busy="true" aria-label="正在读取目录" className="divide-y divide-line-soft">
+            {[46, 30, 38, 24, 52, 34, 42, 28].map((width, index) => (
+              <div key={index} className="flex items-center gap-3 px-3 py-[9px]">
+                <Skeleton className="size-4 shrink-0 rounded" />
+                <Skeleton className="h-3.5" style={{ width: `${width}%` }} />
+                <Skeleton className="ms-auto hidden h-3 w-12 shrink-0 sm:block" />
+                <Skeleton className="h-3 w-14 shrink-0" />
+                <Skeleton className="h-3 w-10 shrink-0" />
+              </div>
+            ))}
           </div>
         ) : sorted.length === 0 ? (
           <EmptyState
@@ -364,17 +381,17 @@ export function FilesPage({ onNotify }: FilesPageProps) {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left" aria-label="网盘文件">
+            <table className="w-full min-w-[560px] border-collapse text-left" aria-label="网盘文件">
               <thead>
                 <tr className="border-b border-line bg-line-soft/35">
-                  <th className="h-8 px-3 text-[12px] font-medium text-muted">名称</th>
-                  <th className="h-8 w-[110px] px-3 text-[12px] font-medium text-muted">
+                  <th className="h-8 px-3 text-[12px] font-medium text-muted-ink">名称</th>
+                  <th className="h-8 w-[110px] px-3 text-[12px] font-medium text-muted-ink">
                     类型
                   </th>
-                  <th className="hidden h-8 w-[110px] px-3 text-right text-[12px] font-medium text-muted sm:table-cell">
+                  <th className="h-8 w-[110px] px-3 text-right text-[12px] font-medium text-muted-ink">
                     大小
                   </th>
-                  <th className="h-8 w-[96px] px-3 text-right text-[12px] font-medium text-muted">
+                  <th className="h-8 w-[96px] px-3 text-right text-[12px] font-medium text-muted-ink">
                     操作
                   </th>
                 </tr>
@@ -406,12 +423,12 @@ export function FilesPage({ onNotify }: FilesPageProps) {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-[12px] text-muted">
+                      <td className="px-3 py-2 text-[12px] text-muted-ink">
                         {entry.is_dir
                           ? "文件夹"
                           : categoryLabels[entry.category ?? ""] ?? "文件"}
                       </td>
-                      <td className="hidden px-3 py-2 text-right font-mono text-[12px] tabular-nums text-muted sm:table-cell">
+                      <td className="px-3 py-2 text-right font-mono text-[12px] tabular-nums text-muted-ink">
                         {entry.is_dir ? "—" : formatBytes(entry.size)}
                       </td>
                       <td className="px-3 py-2">
@@ -503,7 +520,7 @@ export function FilesPage({ onNotify }: FilesPageProps) {
             <Button variant="secondary" size="sm" onClick={() => setDeleteTarget(null)}>
               取消
             </Button>
-            <Button variant="danger" size="sm" disabled={busy} onClick={() => void submitDelete()}>
+            <Button variant="destructive" size="sm" disabled={busy} onClick={() => void submitDelete()}>
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
               删除
             </Button>

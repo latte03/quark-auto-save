@@ -25,22 +25,25 @@ export function SummaryPanel({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-panel border border-line bg-panel",
+        "flex h-full flex-col overflow-hidden rounded-panel bg-panel shadow-panel",
         className,
       )}
       aria-label="运行概览"
     >
-      <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+      <div className="flex shrink-0 items-center justify-between px-4 pb-2.5 pt-3.5">
         <div className="text-[14px] font-semibold text-ink">运行概览</div>
         <div className="font-mono text-[12px] tracking-[0.06em] text-subtle">
           实时
         </div>
       </div>
-      <div className="grid grid-cols-2 divide-x divide-y divide-line lg:grid-cols-4 lg:divide-y-0">
+      <div className="grid flex-1 grid-cols-2 gap-2 px-3 pb-3 lg:grid-cols-4">
         {metrics.map((metric) => (
-          <div key={metric.label} className="min-w-0 px-4 py-3.5">
+          <div
+            key={metric.label}
+            className="flex min-w-0 flex-col rounded-md bg-canvas/70 px-3 py-3"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-[12px] text-muted">{metric.label}</span>
+              <span className="truncate text-[12px] text-muted-ink">{metric.label}</span>
             </div>
             <div className="mt-1.5 flex items-baseline gap-1">
               <span
@@ -57,7 +60,9 @@ export function SummaryPanel({
                 </span>
               ) : null}
             </div>
-            <div className="mt-1.5 text-[12px] text-muted">{metric.hint}</div>
+            <div className="mt-auto pt-1.5 text-[12px] text-muted-ink">
+              {metric.hint}
+            </div>
           </div>
         ))}
       </div>

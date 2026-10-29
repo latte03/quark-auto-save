@@ -9,6 +9,8 @@ const statusMap: Record<
   waiting: { label: "等待运行", variant: "warn" },
   done: { label: "已完结", variant: "neutral" },
   banned: { label: "链接失效", variant: "danger" },
+  once: { label: "待执行", variant: "warn" },
+  once_done: { label: "已完成", variant: "neutral" },
 };
 
 export function TaskStatusBadge({ status }: { status: TaskStatus }) {

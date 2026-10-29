@@ -21,12 +21,12 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="grid h-10 w-10 place-items-center rounded-full bg-line-soft text-muted">
+      <div className="grid h-10 w-10 place-items-center rounded-full bg-line-soft text-muted-ink">
         <Icon className="h-4 w-4" strokeWidth={1.6} />
       </div>
       <div className="mt-3 text-[13px] font-medium text-ink">{title}</div>
       {description ? (
-        <p className="mt-1 max-w-[36ch] text-[12px] leading-5 text-muted">
+        <p className="mt-1 max-w-[36ch] text-[12px] leading-5 text-muted-ink">
           {description}
         </p>
       ) : null}

@@ -1,34 +1,50 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bell,
-  CalendarClock,
+  Check,
   CheckCircle2,
   ChevronDown,
+  CircleAlert,
+  CircleHelp,
   Cookie,
+  FileText,
   FolderOpen,
   HardDrive,
   KeyRound,
   Loader2,
+  Pencil,
   Plug,
+  Palette,
   Plus,
+  QrCode,
   Radar,
+  RefreshCw,
   Save,
   Search,
   Sparkles,
   Trash2,
+  X,
   Zap,
 } from "lucide-react";
-import type { AppConfig, MagicRegex, PluginConfig } from "../lib/types";
+import { QRCodeSVG } from "qrcode.react";
+import type { AppConfig, PluginConfig } from "../lib/types";
 import { pluginDescriptions, pluginLabels } from "../lib/mock";
 import {
   detectSources,
   getAuthorizedDirs,
+  getConfig,
+  getQuarkAccount,
+  pollQuarkQR,
   previewRename,
+  renameMagicRule,
   searchShares,
+  startQuarkQR,
   testNotify,
   validateLocalDir,
   type LocalDirCheck,
+  type QuarkAccount,
+  type QuarkQR,
   type SourceDetection,
 } from "../lib/api";
 import { pickSharedDirectory } from "../lib/trim";
@@ -36,8 +52,15 @@ import { LocalDirDialog } from "./LocalDirDialog";
 import { cn } from "../lib/utils";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Field, SwitchRow } from "../components/ui/field";
-import { Input, Textarea } from "../components/ui/input";
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+} from "../components/ui/field";
+import { SwitchField } from "../components/SwitchField";
+import { Switch } from "../components/ui/switch";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -45,11 +68,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "../components/ui/hover-card";
+import { PageHeader } from "../components/PageHeader";
 import { PageSection } from "../components/PageSection";
+import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
+import type { ToastTone } from "../components/Toast";
+import { themeLabels, type ThemeMode } from "../lib/theme";
 
 type SettingsSection =
+  | "appearance"
   | "cookie"
-  | "schedule"
+  | "logs"
   | "notify"
   | "download"
   | "plugins"
@@ -62,8 +104,9 @@ const sections: {
   icon: typeof Cookie;
   description: string;
 }[] = [
+  { id: "appearance", label: "外观", icon: Palette, description: "浅色与深色" },
   { id: "cookie", label: "Cookie", icon: Cookie, description: "账号与签到" },
-  { id: "schedule", label: "定时", icon: CalendarClock, description: "Crontab" },
+  { id: "logs", label: "日志", icon: FileText, description: "运行记录" },
   { id: "notify", label: "通知", icon: Bell, description: "推送渠道" },
   { id: "download", label: "下载", icon: HardDrive, description: "本地落盘" },
   { id: "plugins", label: "插件", icon: Plug, description: "媒体库与下载" },
@@ -181,6 +224,27 @@ const pluginFieldLabels: Record<string, string> = {
   cookie: "Cookie",
 };
 
+function newRuleId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `m${crypto.randomUUID().replaceAll("-", "").slice(0, 8)}`;
+  }
+  return `m${Math.random().toString(36).slice(2, 10)}`;
+}
+
+const magicVariables: { name: string; meaning: string }[] = [
+  { name: "{TASKNAME}", meaning: "任务名称" },
+  { name: "{CHINESE}", meaning: "文件名里的中文片段" },
+  { name: "{EXT}", meaning: "扩展名" },
+  { name: "{DATE}", meaning: "日期，不足 8 位用当年补齐" },
+  { name: "{YEAR}", meaning: "四位年份" },
+  { name: "{S}", meaning: "季号数字，如 S01 里的 01" },
+  { name: "{SXX}", meaning: "带 S 的季号，如 S01；缺失时为 S01" },
+  { name: "{E}", meaning: "集数" },
+  { name: "{PART}", meaning: "上 / 中 / 下、一 / 二 / 三" },
+  { name: "{VER}", meaning: "「XX版」里的版本标记" },
+  { name: "{I} / {I+}", meaning: "序号；带 + 会接着目标目录已有编号续排" },
+];
+
 function isSecret(key: string) {
   return /token|secret|password|key|cookie/i.test(key);
 }
@@ -210,7 +274,7 @@ function PluginFields({
         if (typeof value === "boolean") {
           return (
             <div key={key} className="md:col-span-1">
-              <SwitchRow
+              <SwitchField
                 label={fieldLabel(key)}
                 checked={value}
                 onCheckedChange={(checked) => onChange(key, checked)}
@@ -220,7 +284,8 @@ function PluginFields({
         }
         if (typeof value === "number") {
           return (
-            <Field key={key} label={fieldLabel(key)} className="py-1.5">
+            <Field key={key} className="py-1.5">
+              <FieldLabel>{fieldLabel(key)}</FieldLabel>
               <Input
                 type="number"
                 value={value}
@@ -230,7 +295,8 @@ function PluginFields({
           );
         }
         return (
-          <Field key={key} label={fieldLabel(key)} className="py-1.5">
+          <Field key={key} className="py-1.5">
+            <FieldLabel>{fieldLabel(key)}</FieldLabel>
             <Input
               type={isSecret(key) ? "password" : "text"}
               value={value}
@@ -249,9 +315,14 @@ type SettingsPageProps = {
   setConfig: (updater: React.SetStateAction<AppConfig>) => void;
   pluginStatus: Record<string, boolean>;
   running: boolean;
+  dirty: boolean;
+  theme: ThemeMode;
+  onThemeChange: (mode: ThemeMode) => void;
+  onAdoptDefaults: () => void;
   onSign: () => void;
   onSave: () => Promise<void>;
-  onNotify: (message: string, tone?: "info" | "ok" | "warn") => void;
+  onTasksReload: () => void;
+  onNotify: (message: string, tone?: ToastTone) => void;
 };
 
 export function SettingsPage({
@@ -259,8 +330,13 @@ export function SettingsPage({
   setConfig,
   pluginStatus,
   running,
+  dirty,
+  theme,
+  onThemeChange,
+  onAdoptDefaults,
   onSign,
   onSave,
+  onTasksReload,
   onNotify,
 }: SettingsPageProps) {
   const [section, setSection] = useState<SettingsSection>("cookie");
@@ -268,6 +344,9 @@ export function SettingsPage({
     Object.keys(config.plugins)[0] ?? null,
   );
   const [sample, setSample] = useState("Black.Mirror.S07E05.mkv");
+  const [renamingKey, setRenamingKey] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renamingBusy, setRenamingBusy] = useState(false);
   const [newChannel, setNewChannel] = useState("");
   const [saving, setSaving] = useState(false);
   const [testingSearch, setTestingSearch] = useState(false);
@@ -282,31 +361,122 @@ export function SettingsPage({
   const [checkingDir, setCheckingDir] = useState(false);
   const [dirCheck, setDirCheck] = useState<LocalDirCheck | null>(null);
   const [authorizedDirs, setAuthorizedDirs] = useState<string[]>([]);
+  const [authorizedError, setAuthorizedError] = useState("");
   const [loadingAuthorized, setLoadingAuthorized] = useState(false);
   const [dirPickerOpen, setDirPickerOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qr, setQr] = useState<QuarkQR | null>(null);
+  const [qrState, setQrState] = useState<"waiting" | "confirmed" | "expired" | "error">(
+    "waiting",
+  );
+  const [qrNote, setQrNote] = useState("");
+  const [qrNick, setQrNick] = useState("");
+  const [startingQR, setStartingQR] = useState(false);
+  const [account, setAccount] = useState<QuarkAccount | null>(null);
+  const [checkingAccount, setCheckingAccount] = useState(false);
   const autoDetect = useRef(false);
 
+  const checkAccount = useCallback(async () => {
+    setCheckingAccount(true);
+    try {
+      setAccount(await getQuarkAccount());
+    } catch (cause) {
+      setAccount({
+        ok: false,
+        message: cause instanceof Error ? cause.message : "账号校验失败",
+      });
+    } finally {
+      setCheckingAccount(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const entries = Object.entries(config.magic_regex);
-    if (entries.length === 0) {
+    void checkAccount();
+  }, [checkAccount]);
+
+  const openQR = async () => {
+    setQrOpen(true);
+    setQr(null);
+    setQrNote("");
+    setQrNick("");
+    setStartingQR(true);
+    try {
+      const session = await startQuarkQR();
+      setQr(session);
+      setQrState("waiting");
+    } catch (cause) {
+      setQrState("error");
+      setQrNote(cause instanceof Error ? cause.message : "无法获取登录二维码");
+    } finally {
+      setStartingQR(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!qrOpen || !qr || qrState !== "waiting") return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      pollQuarkQR(qr.id)
+        .then((next) => {
+          if (!active) return;
+          if (next.status === "confirmed") {
+            setQrState("confirmed");
+            setQrNick(next.nickname ?? "");
+            setQrNote(next.nickname ? `登录成功：${next.nickname}` : "登录成功");
+            if (next.cookies) {
+              setConfig((prev) => ({ ...prev, cookie: next.cookies ?? prev.cookie }));
+            }
+            setAccount({
+              ok: true,
+              nickname: next.nickname,
+              checked_at: new Date().toISOString(),
+            });
+            onNotify(
+              `扫码登录成功${next.nickname ? `：${next.nickname}` : ""}`,
+              "ok",
+            );
+          } else if (next.status === "expired") {
+            setQrState("expired");
+            setQrNote("二维码已过期，请刷新");
+          } else if (next.status === "error") {
+            setQrState("error");
+            setQrNote(next.message || "扫码失败，请重试");
+          }
+        })
+        .catch((cause: unknown) => {
+          if (active) {
+            setQrNote(cause instanceof Error ? cause.message : "查询扫码状态失败");
+          }
+        });
+    }, 1200);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [qrOpen, qr, qrState, setConfig, onNotify]);
+
+  useEffect(() => {
+    const rules = config.magic_regex;
+    if (rules.length === 0) {
       setPreviews({});
       return;
     }
     let cancelled = false;
     const timer = window.setTimeout(() => {
       Promise.all(
-        entries.map(async ([key, rule]) => {
+        rules.map(async (rule) => {
           try {
             const result = await previewRename({
               taskname: "示例任务",
+              magic_id: rule.id,
               pattern: rule.pattern,
               replace: rule.replace,
               files: [sample],
             });
             const file = result.files[0];
-            return [key, file?.matched ? file.renamed : "不匹配"] as const;
+            return [rule.id, file?.matched ? file.renamed : "不匹配"] as const;
           } catch {
-            return [key, "预览失败"] as const;
+            return [rule.id, "预览失败"] as const;
           }
         }),
       ).then((pairs) => {
@@ -359,6 +529,7 @@ export function SettingsPage({
 
   const loadAuthorizedDirs = async () => {
     setLoadingAuthorized(true);
+    setAuthorizedError("");
     try {
       const result = await getAuthorizedDirs();
       const paths = result.paths ?? [];
@@ -366,9 +537,13 @@ export function SettingsPage({
       if (paths.length > 0 && !config.local_download.dir.trim()) {
         updateLocalDownload("dir", paths[0]);
         void checkDirectory(paths[0]);
+        onAdoptDefaults();
       }
-    } catch {
+    } catch (cause) {
       setAuthorizedDirs([]);
+      setAuthorizedError(
+        cause instanceof Error ? cause.message : "无法读取飞牛授权目录",
+      );
     } finally {
       setLoadingAuthorized(false);
     }
@@ -384,7 +559,7 @@ export function SettingsPage({
       setDirCheck(await validateLocalDir(path.trim()));
     } catch (cause) {
       setDirCheck(null);
-      onNotify(cause instanceof Error ? cause.message : "目录检查失败", "warn");
+      onNotify(cause instanceof Error ? cause.message : "目录检查失败", "error");
     } finally {
       setCheckingDir(false);
     }
@@ -470,13 +645,17 @@ export function SettingsPage({
     );
   };
 
-  const runDetection = async (scope: "search" | "alist" | "all") => {
+  const runDetection = async (
+    scope: "search" | "alist" | "all",
+    adopt = false,
+  ) => {
     if (scope !== "alist") setDetectingSources(true);
     if (scope !== "search") setDetectingAlist(true);
     try {
       const result = await detectSources();
       if (scope !== "alist") fillSearchSources(result);
       if (scope !== "search") fillAlistServers(result);
+      if (adopt) onAdoptDefaults();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "自动识别失败";
       if (scope !== "alist") setDetectNote(message);
@@ -501,18 +680,50 @@ export function SettingsPage({
       (plugin) => !String(config.plugins[plugin]?.url ?? "").trim(),
     );
     if (searchEmpty || alistEmpty) {
-      void runDetection(searchEmpty ? (alistEmpty ? "all" : "search") : "alist");
+      void runDetection(
+        searchEmpty ? (alistEmpty ? "all" : "search") : "alist",
+        true,
+      );
     }
   }, []);
 
-  const updateMagic = (key: string, field: keyof MagicRegex, value: string) =>
+  const updateMagic = (
+    id: string,
+    field: "name" | "pattern" | "replace",
+    value: string,
+  ) =>
     setConfig((prev) => ({
       ...prev,
-      magic_regex: {
-        ...prev.magic_regex,
-        [key]: { ...prev.magic_regex[key], [field]: value },
-      },
+      magic_regex: prev.magic_regex.map((rule) =>
+        rule.id === id ? { ...rule, [field]: value } : rule,
+      ),
     }));
+
+  // Renaming only touches the display name; tasks reference the stable id.
+  const commitRename = async (id: string) => {
+    const current = config.magic_regex.find((rule) => rule.id === id);
+    const to = renameDraft.trim();
+    if (!current || !to || to === current.name) {
+      setRenamingKey(null);
+      return;
+    }
+    if (config.magic_regex.some((rule) => rule.id !== id && rule.name === to)) {
+      onNotify(`已存在规则 ${to}`, "warn");
+      return;
+    }
+    setRenamingBusy(true);
+    try {
+      await renameMagicRule(id, to);
+      setConfig(await getConfig());
+      setRenamingKey(null);
+      onNotify(`已重命名为 ${to}`, "ok");
+      onTasksReload();
+    } catch (cause) {
+      onNotify(cause instanceof Error ? cause.message : "重命名失败", "error");
+    } finally {
+      setRenamingBusy(false);
+    }
+  };
 
   const go = (id: SettingsSection) => {
     setSection(id);
@@ -538,7 +749,7 @@ export function SettingsPage({
       );
       setNotifyLog(result.log.trim());
     } catch (cause) {
-      onNotify(cause instanceof Error ? cause.message : "推送测试失败", "warn");
+      onNotify(cause instanceof Error ? cause.message : "推送测试失败", "error");
     } finally {
       setTestingNotify(false);
     }
@@ -553,7 +764,7 @@ export function SettingsPage({
       await onSave();
       onNotify("配置已保存，调度器已重载", "ok");
     } catch (cause) {
-      onNotify(cause instanceof Error ? cause.message : "保存失败", "warn");
+      onNotify(cause instanceof Error ? cause.message : "保存失败", "error");
     } finally {
       setSaving(false);
     }
@@ -568,33 +779,52 @@ export function SettingsPage({
         : "";
       onNotify(`搜索源返回 ${result.results.length} 条候选${suffix}`, "ok");
     } catch (cause) {
-      onNotify(cause instanceof Error ? cause.message : "搜索失败", "warn");
+      onNotify(cause instanceof Error ? cause.message : "搜索失败", "error");
     } finally {
       setTestingSearch(false);
     }
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[172px_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-[76px] lg:self-start">
-        <div className="grid grid-cols-3 gap-1 rounded-panel border border-line bg-panel p-1 lg:flex lg:flex-col">
+    <div className="space-y-4">
+      <PageHeader
+        title="设置"
+        description="账号、通知、插件与命名规则。"
+      />
+      <div className="grid gap-4 lg:grid-cols-[172px_minmax(0,1fr)]">
+      <aside className="lg:sticky lg:top-5 lg:self-start">
+        <div className="grid grid-cols-3 gap-1 lg:flex lg:flex-col lg:gap-0.5">
           {sections.map((item) => {
             const Icon = item.icon;
+            const active = section === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => go(item.id)}
+                aria-current={active ? "true" : undefined}
                 className={cn(
-                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors lg:px-2.5 lg:py-2",
-                  section === item.id
-                    ? "bg-brand-soft text-brand-ink"
-                    : "text-muted hover:bg-line-soft hover:text-ink",
+                  "relative flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors lg:px-2.5 lg:py-2",
+                  active
+                    ? "bg-brand text-white"
+                    : "text-muted-ink hover:bg-line-soft hover:text-ink",
                 )}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.7} />
                 <span className="min-w-0">
-                  <span className="block text-[12px] font-medium">{item.label}</span>
-                  <span className="hidden text-[12px] text-subtle lg:block">
+                  <span
+                    className={cn(
+                      "block text-[12px]",
+                      active ? "font-semibold" : "font-medium",
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "hidden text-[12px] lg:block",
+                      active ? "text-white/70" : "text-subtle",
+                    )}
+                  >
                     {item.description}
                   </span>
                 </span>
@@ -605,29 +835,36 @@ export function SettingsPage({
       </aside>
 
       <div className="min-w-0 space-y-4">
-        <div className="sticky top-14 z-10 -mx-1 flex flex-wrap items-center justify-between gap-3 border-b border-line/70 bg-canvas/95 px-1 py-2 backdrop-blur-sm lg:top-[60px]">
-          <span className="min-w-0 flex-1" />
-          <Button
-            size="sm"
-            className="shrink-0"
-            disabled={saving}
-            onClick={() => void save()}
+        <PageSection
+          id="settings-appearance"
+          title="外观"
+          description="只影响当前浏览器，不写入配置文件。"
+        >
+          <Tabs
+            value={theme}
+            onValueChange={(value) => onThemeChange(value as ThemeMode)}
+            className="max-w-[320px]"
           >
-            {saving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            {saving ? "保存中" : "保存配置"}
-          </Button>
-        </div>
+            <TabsList className="w-full">
+              {(Object.keys(themeLabels) as ThemeMode[]).map((mode) => (
+                <TabsTrigger key={mode} value={mode} className="text-[12px]">
+                  {themeLabels[mode]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </PageSection>
 
         <PageSection
           id="settings-cookie"
           title="Cookie"
-          description="第一个账号执行转存，所有账号执行签到。建议使用手机验证码登录后抓取的完整 Cookie。"
+          description="第一个账号执行转存，所有账号执行签到。可以扫码登录直接写入主账号，也可以手动粘贴 Cookie。"
           action={
             <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => void openQR()}>
+                <QrCode className="h-3.5 w-3.5" />
+                扫码登录
+              </Button>
               <Button
                 variant="secondary"
                 size="sm"
@@ -651,8 +888,49 @@ export function SettingsPage({
           }
         >
           <div className="space-y-2.5">
+            {config.cookie.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-md bg-line-soft/60 px-3 py-2.5 text-[12px]">
+                <span className="text-muted-ink">当前账号</span>
+                {account?.ok ? (
+                  <Badge variant="ok" dot>
+                    {account.nickname || "已登录"}
+                  </Badge>
+                ) : account ? (
+                  <Badge variant="danger" dot>
+                    Cookie 失效
+                  </Badge>
+                ) : (
+                  <Badge variant="neutral">未校验</Badge>
+                )}
+                {account?.ok && account.checked_at ? (
+                  <span className="text-subtle">
+                    校验于{" "}
+                    {new Date(account.checked_at).toLocaleTimeString("zh-CN", {
+                      hour12: false,
+                    })}
+                  </span>
+                ) : null}
+                {account && !account.ok && account.message ? (
+                  <span className="min-w-0 truncate text-danger">{account.message}</span>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto"
+                  disabled={checkingAccount}
+                  onClick={() => void checkAccount()}
+                >
+                  {checkingAccount ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  重新校验
+                </Button>
+              </div>
+            ) : null}
             {config.cookie.map((value, index) => (
-              <div key={index} className="rounded-md border border-line bg-line-soft/25 p-2.5">
+              <div key={index}>
                 <div className="mb-1.5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="grid h-5 w-5 place-items-center rounded-full bg-sidebar text-[12px] font-semibold text-white">
@@ -691,7 +969,7 @@ export function SettingsPage({
                 />
               </div>
             ))}
-            <div className="flex items-center gap-1.5 text-[12px] text-muted">
+            <div className="flex items-center gap-1.5 text-[12px] text-muted-ink">
               <KeyRound className="h-3 w-3" />
               移动端参数（kps / sign / vcode）用于签到；缺失时只执行转存。
             </div>
@@ -699,48 +977,24 @@ export function SettingsPage({
         </PageSection>
 
         <PageSection
-          id="settings-schedule"
-          title="定时"
-          description="由 Go 服务端的 cron 调度器执行；保存配置后自动重新加载，同一时间只跑一轮。"
+          id="settings-logs"
+          title="日志"
+          description="任务与签到的输出会保存在 NAS 上，运行记录页按时间倒序展示。"
         >
-          <div className="grid gap-3 md:grid-cols-[1fr_1.2fr]">
-            <Field label="Crontab" hint="例：0 8,18,20 * * *（每天 8 点、18 点、20 点）">
-              <Input
-                value={config.crontab}
-                onChange={(event) => update("crontab", event.target.value)}
-                className="font-mono"
-              />
-            </Field>
-            <div className="rounded-md border border-line bg-line-soft/30 px-3 py-2">
-              <div className="text-[12px] text-muted">下一次运行</div>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {(config.next_runs.length > 0 ? config.next_runs : ["保存后计算"]).map(
-                  (item) => (
-                    <Badge key={item} variant="neutral">
-                      <CalendarClock className="h-3 w-3" />
-                      {item}
-                    </Badge>
-                  ),
-                )}
-              </div>
-              <div className="mt-2 font-mono text-[12px] text-subtle">
-                单实例运行 · 错过不补跑 · 保存后立即重载
-              </div>
-            </div>
-          </div>
-          <div className="mt-3 max-w-[220px]">
-            <Field label="运行日志保留条数" hint="超出后自动删除最旧记录。">
-              <Input
-                type="number"
-                min={1}
-                max={200}
-                value={config.run_logs.keep}
-                onChange={(event) =>
-                  update("run_logs", { keep: Number(event.target.value) })
-                }
-              />
-            </Field>
-          </div>
+          <Field className="max-w-[240px]">
+            <FieldLabel htmlFor="run-log-keep">运行日志保留条数</FieldLabel>
+            <Input
+              id="run-log-keep"
+              type="number"
+              min={1}
+              max={200}
+              value={config.run_logs.keep}
+              onChange={(event) =>
+                update("run_logs", { keep: Number(event.target.value) })
+              }
+            />
+            <FieldDescription>超出后自动删除最旧记录。</FieldDescription>
+          </Field>
         </PageSection>
 
         <PageSection
@@ -766,11 +1020,11 @@ export function SettingsPage({
           }
         >
           {Object.keys(config.push_config).length > 0 ? (
-            <div className="overflow-hidden rounded-md border border-line">
+            <div className="space-y-1 rounded-md bg-line-soft/50 p-2">
               {Object.entries(config.push_config).map(([key, value]) => (
                 <div
                   key={key}
-                  className="flex items-center gap-3 border-b border-line-soft px-3 py-2 last:border-b-0"
+                  className="flex items-center gap-3 px-1.5 py-1.5"
                 >
                   <span className="w-[132px] shrink-0 text-[12px] font-medium text-ink">
                     {pushLabels[key] ?? key}
@@ -808,15 +1062,21 @@ export function SettingsPage({
               ))}
             </div>
           ) : (
-            <p className="text-[12px] text-muted">
+            <p className="text-[12px] text-muted-ink">
               还没有添加通知渠道；从下面选择一项后填写参数。
             </p>
           )}
           <div className="mt-2 flex gap-2">
             <Select
               value={newChannel || "__none__"}
+              items={[
+                { value: "__none__", label: "添加通知渠道…" },
+                ...Object.keys(pushLabels)
+                  .filter((key) => !(key in config.push_config))
+                  .map((key) => ({ value: key, label: pushLabels[key] ?? key })),
+              ]}
               onValueChange={(value) =>
-                setNewChannel(value === "__none__" ? "" : value)
+                setNewChannel(!value || value === "__none__" ? "" : value)
               }
             >
               <SelectTrigger className="max-w-[240px]" aria-label="选择要添加的通知渠道">
@@ -852,7 +1112,7 @@ export function SettingsPage({
             </Button>
           </div>
           {notifyLog ? (
-            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-line bg-line-soft/40 p-2.5 font-mono text-[12px] leading-relaxed text-muted">
+            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-line-soft/50 p-2.5 font-mono text-[12px] leading-relaxed text-muted-ink">
               {notifyLog}
             </pre>
           ) : null}
@@ -864,9 +1124,26 @@ export function SettingsPage({
           description="把云端文件直接落盘到 NAS；目录须位于存储空间下，且应用用户可写。"
         >
           <div className="space-y-3">
-            <div className="rounded-md border border-line px-3 py-2.5">
+            <div>
+              {authorizedError ? (
+                <div
+                  role="alert"
+                  className="mb-2 flex flex-wrap items-center gap-2 rounded-md bg-danger-soft/60 px-2.5 py-2 text-[12px] text-danger"
+                >
+                  <CircleAlert className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1">{authorizedError}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-1.5 text-[12px] hover:bg-danger-soft hover:text-danger"
+                    onClick={() => void loadAuthorizedDirs()}
+                  >
+                    重试
+                  </Button>
+                </div>
+              ) : null}
               {loadingAuthorized || authorizedDirs.length > 0 ? (
-                <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[12px] text-muted">
+                <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[12px] text-muted-ink">
                   <span>飞牛已授权</span>
                   {loadingAuthorized ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -891,11 +1168,11 @@ export function SettingsPage({
                   ))}
                 </div>
               ) : null}
-              <Field
-                label="默认下载目录"
-              >
-                <div className="flex flex-wrap gap-2">
+              <Field>
+                <FieldLabel htmlFor="download-dir">默认下载目录</FieldLabel>
+                <div className="flex flex-wrap items-center gap-2">
                   <Input
+                    id="download-dir"
                     value={config.local_download.dir}
                     onChange={(event) =>
                       updateLocalDownload("dir", event.target.value)
@@ -964,8 +1241,10 @@ export function SettingsPage({
               ) : null}
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <Field label="并发下载数">
+              <Field>
+                <FieldLabel htmlFor="download-concurrency">并发下载数</FieldLabel>
                 <Input
+                  id="download-concurrency"
                   type="number"
                   min={1}
                   max={8}
@@ -975,8 +1254,10 @@ export function SettingsPage({
                   }
                 />
               </Field>
-              <Field label="最小可用空间 (GB)" hint="低于该值时跳过下载">
+              <Field>
+                <FieldLabel htmlFor="download-min-free">最小可用空间 (GB)</FieldLabel>
                 <Input
+                  id="download-min-free"
                   type="number"
                   min={0}
                   value={config.local_download.min_free_gb}
@@ -984,17 +1265,23 @@ export function SettingsPage({
                     updateLocalDownload("min_free_gb", Number(event.target.value))
                   }
                 />
+                <FieldDescription>低于该值时跳过下载</FieldDescription>
               </Field>
-              <div className="rounded-md border border-line px-3 py-2.5">
-                <SwitchRow
-                  label="覆盖同名文件"
-                  description="关闭时保留已有文件"
-                  checked={config.local_download.overwrite}
-                  onCheckedChange={(checked) =>
-                    updateLocalDownload("overwrite", checked)
-                  }
-                />
-              </div>
+              <Field>
+                <FieldLabel htmlFor="download-overwrite">覆盖同名文件</FieldLabel>
+                <div className="flex h-8 items-center gap-2">
+                  <Switch
+                    id="download-overwrite"
+                    checked={config.local_download.overwrite}
+                    onCheckedChange={(checked) =>
+                      updateLocalDownload("overwrite", checked)
+                    }
+                  />
+                  <span className="text-[12px] text-muted-ink">
+                    关闭时保留已有文件
+                  </span>
+                </div>
+              </Field>
             </div>
           </div>
         </PageSection>
@@ -1026,7 +1313,7 @@ export function SettingsPage({
           bodyClassName="p-0"
         >
           {alistNote ? (
-            <div className="border-b border-line bg-line-soft/40 px-4 py-2 text-[12px] text-muted">
+            <div className="bg-line-soft/50 px-4 py-2 text-[12px] text-muted-ink">
               {alistNote}
             </div>
           ) : null}
@@ -1046,7 +1333,7 @@ export function SettingsPage({
                         "grid h-7 w-7 shrink-0 place-items-center rounded-md",
                         pluginStatus[plugin]
                           ? "bg-ok-soft text-ok"
-                          : "bg-line-soft text-muted",
+                          : "bg-line-soft text-muted-ink",
                       )}
                     >
                       <Plug className="h-3.5 w-3.5" />
@@ -1057,7 +1344,7 @@ export function SettingsPage({
                           {pluginLabels[plugin] ?? plugin}
                         </span>
                       </span>
-                      <span className="mt-0.5 block truncate text-[12px] text-muted">
+                      <span className="mt-0.5 block truncate text-[12px] text-muted-ink">
                         {pluginDescriptions[plugin] ?? ""}
                       </span>
                     </span>
@@ -1072,13 +1359,13 @@ export function SettingsPage({
                     />
                   </button>
                   {open ? (
-                    <div className="border-t border-line-soft bg-line-soft/20 px-4 py-3">
+                    <div className="bg-line-soft/30 px-4 py-3">
                       <PluginFields
                         plugin={plugin}
                         values={values}
                         onChange={(key, value) => updatePlugin(plugin, key, value)}
                       />
-                      <div className="mt-2 flex items-center justify-between border-t border-line-soft pt-2">
+                      <div className="mt-2 flex items-center justify-between">
                         <span className="font-mono text-[12px] uppercase tracking-[0.08em] text-subtle">
                           {plugin} · default_config
                         </span>
@@ -1094,18 +1381,55 @@ export function SettingsPage({
         <PageSection
           id="settings-magic"
           title="魔法正则"
-          description="匹配表达式可写 $TV_MAGIC 等魔法键；替换式支持 {TASKNAME}、{SXX}、{E}、{EXT} 等变量。"
+          description={
+            <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-0.5">
+              匹配表达式可写 $TV_MAGIC 等魔法键；替换表达式支持变量。
+              <HoverCard>
+                <HoverCardTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-0.5 rounded text-brand-ink outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+                    />
+                  }
+                >
+                  <CircleHelp className="h-3 w-3" />
+                  变量说明
+                </HoverCardTrigger>
+                <HoverCardContent align="start" className="w-[330px] p-3">
+                  <div className="text-[12px] font-medium text-ink">
+                    替换表达式可用变量
+                  </div>
+                  <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                    {magicVariables.map((item) => (
+                      <div key={item.name} className="contents">
+                        <dt className="font-mono text-[12px] text-brand-ink">
+                          {item.name}
+                        </dt>
+                        <dd className="text-[12px] leading-4 text-muted-ink">
+                          {item.meaning}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="mt-2 text-[12px] leading-4 text-subtle">
+                    变量从原文件名抓取，抓不到时替换为空串。
+                  </p>
+                </HoverCardContent>
+              </HoverCard>
+            </span>
+          }
           action={
             <Button
               variant="secondary"
               size="sm"
               onClick={() => {
-                const key = `$MAGIC_${Object.keys(config.magic_regex).length + 1}`;
-                update("magic_regex", {
+                const name = `$MAGIC_${config.magic_regex.length + 1}`;
+                update("magic_regex", [
                   ...config.magic_regex,
-                  [key]: { pattern: "", replace: "" },
-                });
-                onNotify(`已添加 ${key}`, "ok");
+                  { id: newRuleId(), name, pattern: "", replace: "" },
+                ]);
+                onNotify(`已添加 ${name}`, "ok");
               }}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -1113,8 +1437,8 @@ export function SettingsPage({
             </Button>
           }
         >
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-line bg-line-soft/30 px-3 py-2">
-            <span className="text-[12px] text-muted">样本文件名</span>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="text-[12px] text-muted-ink">样本文件名</span>
             <Input
               value={sample}
               onChange={(event) => setSample(event.target.value)}
@@ -1126,14 +1450,66 @@ export function SettingsPage({
             </span>
           </div>
           <div className="space-y-2">
-            {Object.entries(config.magic_regex).map(([key, value]) => {
-              const preview = previews[key] ?? "预览中…";
+            {config.magic_regex.map((rule) => {
+              const key = rule.name;
+              const preview = previews[rule.id] ?? "预览中…";
               return (
-                <div key={key} className="rounded-md border border-line px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[12px] font-medium text-brand-ink">
-                      {key}
-                    </span>
+                <div key={rule.id} className="rounded-md bg-line-soft/50 px-3 py-2.5">
+                  <div className="group flex items-center gap-2">
+                    {renamingKey === rule.id ? (
+                      <>
+                        <Input
+                          autoFocus
+                          value={renameDraft}
+                          aria-label={`规则名称 ${key}`}
+                          className="h-7 w-48 font-mono text-[12px]"
+                          onChange={(event) => setRenameDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") void commitRename(rule.id);
+                            if (event.key === "Escape") setRenamingKey(null);
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="保存规则名称"
+                          disabled={renamingBusy}
+                          onClick={() => void commitRename(rule.id)}
+                        >
+                          {renamingBusy ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="取消重命名"
+                          onClick={() => setRenamingKey(null)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-mono text-[12px] font-medium text-brand-ink">
+                          {key}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`重命名 ${key}`}
+                          className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                          onClick={() => {
+                            setRenamingKey(rule.id);
+                            setRenameDraft(rule.name);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                     <span className="ml-auto font-mono text-[12px] text-subtle">
                       {preview}
                     </span>
@@ -1142,31 +1518,34 @@ export function SettingsPage({
                       size="icon-sm"
                       aria-label={`删除 ${key}`}
                       onClick={() =>
-                        setConfig((prev) => {
-                          const next = { ...prev.magic_regex };
-                          delete next[key];
-                          return { ...prev, magic_regex: next };
-                        })
+                        setConfig((prev) => ({
+                          ...prev,
+                          magic_regex: prev.magic_regex.filter(
+                            (item) => item.id !== rule.id,
+                          ),
+                        }))
                       }
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  <div className="mt-1.5 grid gap-2 md:grid-cols-[1.4fr_1fr]">
-                    <Field label="匹配表达式">
+                  <div className="mt-1.5 grid gap-2 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                    <Field>
+                      <FieldLabel>匹配表达式</FieldLabel>
                       <Input
-                        value={value.pattern}
+                        value={rule.pattern}
                         onChange={(event) =>
-                          updateMagic(key, "pattern", event.target.value)
+                          updateMagic(rule.id, "pattern", event.target.value)
                         }
                         className="font-mono text-[12px]"
                       />
                     </Field>
-                    <Field label="替换表达式">
+                    <Field>
+                      <FieldLabel>替换表达式</FieldLabel>
                       <Input
-                        value={value.replace}
+                        value={rule.replace}
                         onChange={(event) =>
-                          updateMagic(key, "replace", event.target.value)
+                          updateMagic(rule.id, "replace", event.target.value)
                         }
                         className="font-mono text-[12px]"
                         placeholder="留空则使用魔法变量"
@@ -1216,12 +1595,12 @@ export function SettingsPage({
         >
           <div className="space-y-4">
             {detectNote ? (
-              <div className="rounded border border-line bg-line-soft/40 px-3 py-2 text-[12px] text-muted">
+              <div className="rounded-md bg-line-soft/50 px-3 py-2 text-[12px] text-muted-ink">
                 {detectNote}
               </div>
             ) : null}
-            <div className="rounded-md border border-line px-3 py-2.5">
-              <SwitchRow
+            <div className="rounded-md bg-line-soft/50 px-3 py-2.5">
+              <SwitchField
                 label="CloudSaver"
                 description="需要服务器地址与账号；token 失效时自动重新登录。"
                 checked={config.source.cloudsaver.enable}
@@ -1230,7 +1609,8 @@ export function SettingsPage({
                 }
               />
               <div className="grid gap-2 md:grid-cols-2">
-                <Field label="服务器">
+                <Field>
+                  <FieldLabel>服务器</FieldLabel>
                   <Input
                     value={config.source.cloudsaver.server}
                     onChange={(event) =>
@@ -1239,7 +1619,8 @@ export function SettingsPage({
                     className="font-mono text-[12px]"
                   />
                 </Field>
-                <Field label="用户名">
+                <Field>
+                  <FieldLabel>用户名</FieldLabel>
                   <Input
                     value={config.source.cloudsaver.username}
                     onChange={(event) =>
@@ -1247,7 +1628,8 @@ export function SettingsPage({
                     }
                   />
                 </Field>
-                <Field label="密码">
+                <Field>
+                  <FieldLabel>密码</FieldLabel>
                   <Input
                     type="password"
                     value={config.source.cloudsaver.password}
@@ -1256,7 +1638,8 @@ export function SettingsPage({
                     }
                   />
                 </Field>
-                <Field label="Token">
+                <Field>
+                  <FieldLabel>Token</FieldLabel>
                   <Input
                     type="password"
                     value={config.source.cloudsaver.token}
@@ -1267,8 +1650,8 @@ export function SettingsPage({
                 </Field>
               </div>
             </div>
-            <div className="rounded-md border border-line px-3 py-2.5">
-              <SwitchRow
+            <div className="rounded-md bg-line-soft/50 px-3 py-2.5">
+              <SwitchField
                 label="PanSou"
                 description="只需服务器地址；按关键词返回夸克网盘分享。"
                 checked={config.source.pansou.enable}
@@ -1276,7 +1659,8 @@ export function SettingsPage({
                   updateSource("pansou", "enable", checked)
                 }
               />
-              <Field label="服务器">
+              <Field>
+                <FieldLabel>服务器</FieldLabel>
                 <Input
                   value={config.source.pansou.server}
                   onChange={(event) =>
@@ -1288,8 +1672,127 @@ export function SettingsPage({
             </div>
           </div>
         </PageSection>
-
       </div>
+      </div>
+
+      <div className="-mb-4 sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-line bg-canvas/95 py-2.5 backdrop-blur-sm lg:-mb-5">
+        <span
+          className={cn(
+            "truncate text-[12px]",
+            dirty ? "text-warn" : "text-muted-ink",
+          )}
+        >
+          {dirty ? "有未保存的更改" : "保存后写入配置并重载调度"}
+        </span>
+        <Button
+          size="sm"
+          className="shrink-0"
+          disabled={saving}
+          onClick={() => void save()}
+        >
+          {saving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          {saving ? "保存中" : "保存配置"}
+        </Button>
+      </div>
+
+      <Dialog
+        open={qrOpen}
+        onOpenChange={(open) => {
+          setQrOpen(open);
+          if (!open) {
+            setQr(null);
+            setQrState("waiting");
+            setQrNote("");
+            setQrNick("");
+          }
+        }}
+      >
+        <DialogContent className="w-[min(380px,calc(100vw-2rem))]">
+          <DialogHeader>
+            <DialogTitle>扫码登录夸克</DialogTitle>
+            <DialogDescription>
+              {qrState === "confirmed"
+                ? "二维码已失效，Cookie 已写入服务器，可以关闭此窗口。"
+                : "用夸克 App 扫一扫并在手机上确认，登录成功后会用该账号覆盖当前主账号。"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-3">
+            {qrState === "confirmed" ? (
+              <div className="flex min-h-[184px] flex-col items-center justify-center gap-1.5 rounded-lg border border-line bg-panel px-4 text-center">
+                <CheckCircle2 className="h-8 w-8 text-ok" strokeWidth={1.6} />
+                <div className="text-[14px] font-medium text-ink">登录成功</div>
+                <div className="text-[12px] leading-5 text-muted-ink">
+                  {qrNick
+                    ? `当前主账号已切换为 ${qrNick}`
+                    : "当前主账号 Cookie 已更新"}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-center">
+                  <div className="rounded-lg border border-line bg-panel p-3">
+                    {qr ? (
+                      <QRCodeSVG value={qr.qr_url} size={196} marginSize={2} />
+                    ) : (
+                      <div className="grid h-[196px] w-[196px] place-items-center px-4 text-center text-[12px] text-muted-ink">
+                        {startingQR
+                          ? "正在获取二维码…"
+                          : qrState === "expired"
+                            ? "二维码已过期"
+                            : qrNote || "没有可用的二维码"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "flex items-center justify-center gap-2 text-[12px]",
+                    qrState === "error" ? "text-danger" : "text-muted-ink",
+                  )}
+                >
+                  {qr && qrState === "waiting" ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      等待扫码
+                    </>
+                  ) : (
+                    <>
+                      {qrState === "error" ? (
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                      ) : null}
+                      {qrNote || (startingQR ? "正在获取二维码…" : "等待扫码")}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            {qrState === "confirmed" ? null : (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={startingQR}
+                onClick={() => void openQR()}
+              >
+                {startingQR ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+                刷新二维码
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setQrOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <LocalDirDialog
         open={dirPickerOpen}

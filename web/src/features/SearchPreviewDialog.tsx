@@ -116,7 +116,7 @@ export function SearchPreviewDialog({
             <button
               type="button"
               onClick={() => setPath([])}
-              className="rounded px-1.5 py-0.5 text-muted hover:bg-panel hover:text-ink"
+              className="rounded px-1.5 py-0.5 text-muted-ink hover:bg-panel hover:text-ink"
             >
               根目录
             </button>
@@ -126,7 +126,7 @@ export function SearchPreviewDialog({
                 <button
                   type="button"
                   onClick={() => setPath(path.slice(0, index + 1))}
-                  className="max-w-[180px] truncate rounded px-1.5 py-0.5 text-muted hover:bg-panel hover:text-ink"
+                  className="max-w-[180px] truncate rounded px-1.5 py-0.5 text-muted-ink hover:bg-panel hover:text-ink"
                 >
                   {item.name}
                 </button>
@@ -149,14 +149,14 @@ export function SearchPreviewDialog({
 
           {!loading && !error ? (
             <div className="overflow-hidden rounded-md border border-line">
-              <div className="grid grid-cols-[1.7fr_88px_88px] items-center gap-3 border-b border-line bg-line-soft/50 px-3 py-2 font-mono text-[12px] uppercase tracking-[0.08em] text-muted">
+              <div className="grid grid-cols-[1.7fr_88px_88px] items-center gap-3 border-b border-line bg-line-soft/50 px-3 py-2 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-ink">
                 <span>文件</span>
                 <span>大小</span>
                 <span>转存</span>
               </div>
               <div className="max-h-[320px] divide-y divide-line overflow-y-auto">
                 {files.length === 0 ? (
-                  <div className="px-3 py-8 text-center text-[12px] text-muted">
+                  <div className="px-3 py-8 text-center text-[12px] text-muted-ink">
                     这个分享是空的，或当前子目录没有文件。
                   </div>
                 ) : null}
@@ -180,7 +180,7 @@ export function SearchPreviewDialog({
                         file.name.endsWith(".rar") ? (
                         <FileArchive className="h-3.5 w-3.5 shrink-0 text-warn" />
                       ) : (
-                        <FileVideo className="h-3.5 w-3.5 shrink-0 text-muted" />
+                        <FileVideo className="h-3.5 w-3.5 shrink-0 text-muted-ink" />
                       )}
                       <span
                         className={cn(

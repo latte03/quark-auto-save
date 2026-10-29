@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
+import type { ToastTone } from "../components/Toast";
 
 type FilePickerDialogProps = {
   open: boolean;
@@ -33,7 +34,7 @@ type FilePickerDialogProps = {
   task: Task;
   onOpenChange: (open: boolean) => void;
   onPickPath: (path: string) => void;
-  onNotify: (message: string, tone?: "info" | "ok" | "warn") => void;
+  onNotify: (message: string, tone?: ToastTone) => void;
 };
 
 export function FilePickerDialog({
@@ -159,7 +160,7 @@ export function FilePickerDialog({
             <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-line bg-line-soft/40 px-2.5 py-2 text-[12px]">
               <button
                 onClick={() => setPath("/")}
-                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted hover:bg-panel hover:text-ink"
+                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-ink hover:bg-panel hover:text-ink"
               >
                 <Home className="h-3.5 w-3.5" />
                 根目录
@@ -171,7 +172,7 @@ export function FilePickerDialog({
                     <ChevronRight className="h-3 w-3 text-subtle" />
                     <button
                       onClick={() => setPath(nextPath)}
-                      className="rounded px-1.5 py-0.5 text-muted hover:bg-panel hover:text-ink"
+                      className="rounded px-1.5 py-0.5 text-muted-ink hover:bg-panel hover:text-ink"
                     >
                       {part}
                     </button>
@@ -180,7 +181,7 @@ export function FilePickerDialog({
               })}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <Input
                 value={manualPath}
                 onChange={(event) => setManualPath(event.target.value)}
@@ -202,7 +203,7 @@ export function FilePickerDialog({
             </div>
 
             <div className="overflow-hidden rounded-md border border-line">
-              <div className="flex items-center gap-2 border-b border-line bg-line-soft/50 px-3 py-2 font-mono text-[12px] text-muted">
+              <div className="flex items-center gap-2 border-b border-line bg-line-soft/50 px-3 py-2 font-mono text-[12px] text-muted-ink">
                 <HardDrive className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{path === "/" ? "根目录" : path}</span>
                 <span className="ml-auto shrink-0 text-[12px] text-subtle">
@@ -219,7 +220,7 @@ export function FilePickerDialog({
                   {dirError}
                 </div>
               ) : entries.length === 0 ? (
-                <div className="px-3 py-8 text-center text-[12px] text-muted">
+                <div className="px-3 py-8 text-center text-[12px] text-muted-ink">
                   这个目录没有子文件夹。可以直接选择它作为保存路径，或返回上一级。
                 </div>
               ) : (
@@ -271,7 +272,7 @@ export function FilePickerDialog({
                 <Sparkles className="h-3 w-3" />
                 {preview?.pattern || task.pattern || "不筛选"}
               </Badge>
-              <span className="font-mono text-[12px] text-muted">
+              <span className="font-mono text-[12px] text-muted-ink">
                 → {preview?.replace || task.replace || "使用魔法变量"}
               </span>
               <span className="ml-auto font-mono text-[12px] text-subtle">
@@ -294,7 +295,7 @@ export function FilePickerDialog({
 
             {!previewLoading && !previewError ? (
               <div className="overflow-hidden rounded-md border border-line">
-                <div className="grid grid-cols-[1.5fr_1.5fr_70px_64px] items-center gap-3 border-b border-line bg-line-soft/50 px-3 py-2 font-mono text-[12px] uppercase tracking-[0.08em] text-muted">
+                <div className="grid grid-cols-[1.5fr_1.5fr_70px_64px] items-center gap-3 border-b border-line bg-line-soft/50 px-3 py-2 font-mono text-[12px] uppercase tracking-[0.08em] text-muted-ink">
                   <span>分享文件</span>
                   <span>转存后名称</span>
                   <span>大小</span>
@@ -302,7 +303,7 @@ export function FilePickerDialog({
                 </div>
                 <div className="max-h-[336px] divide-y divide-line overflow-y-auto">
                   {files.length === 0 ? (
-                    <div className="px-3 py-8 text-center text-[12px] text-muted">
+                    <div className="px-3 py-8 text-center text-[12px] text-muted-ink">
                       这个分享是空的，或当前子目录没有文件。
                     </div>
                   ) : null}
@@ -318,7 +319,7 @@ export function FilePickerDialog({
                           file.name.endsWith(".rar") ? (
                           <FileArchive className="h-3.5 w-3.5 shrink-0 text-warn" />
                         ) : (
-                          <FileVideo className="h-3.5 w-3.5 shrink-0 text-muted" />
+                          <FileVideo className="h-3.5 w-3.5 shrink-0 text-muted-ink" />
                         )}
                         <span
                           className={cn(
@@ -366,7 +367,7 @@ export function FilePickerDialog({
                 共 {preview.total} 项，仅显示前 {files.length} 项。
               </p>
             ) : null}
-            <p className="text-[12px] leading-4 text-muted">
+            <p className="text-[12px] leading-4 text-muted-ink">
               目录与子目录内文件保持原名；普通文件按匹配表达式重命名。标记「已存在」的文件会被跳过。
             </p>
           </DialogBody>

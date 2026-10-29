@@ -3,13 +3,12 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
-  ListChecks,
   Play,
-  Settings2,
   Wrench,
 } from "lucide-react";
 import type { RunView, Task } from "../lib/types";
 import { AlertStrip } from "../components/AlertStrip";
+import { PageHeader } from "../components/PageHeader";
 import { PageSection } from "../components/PageSection";
 import { SummaryPanel, type Metric } from "../components/SummaryPanel";
 import { TaskTable } from "../components/TaskTable";
@@ -27,7 +26,6 @@ type OverviewPageProps = {
   onOpenLog: () => void;
   onRunAll: () => void;
   onGoTasks: (filter?: "banned") => void;
-  onGoSettings: () => void;
 };
 
 function runSeconds(run: RunView | null) {
@@ -48,7 +46,6 @@ export function OverviewPage({
   onOpenLog,
   onRunAll,
   onGoTasks,
-  onGoSettings,
 }: OverviewPageProps) {
   const banned = tasks.filter((task) => task.status === "banned");
   const upcoming = tasks
@@ -56,7 +53,9 @@ export function OverviewPage({
     .slice(0, 4);
   const recent = tasks.slice(0, 5);
   const tracking = tasks.filter((task) => task.status === "tracking").length;
-  const done = tasks.filter((task) => task.status === "done").length;
+  const done = tasks.filter(
+    (task) => task.status === "done" || task.status === "once_done",
+  ).length;
   const seconds = runSeconds(latestRun);
 
   const metrics: Metric[] = [
@@ -92,6 +91,10 @@ export function OverviewPage({
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="总览"
+        description="最近一次执行、追更进度与需要处理的链接。"
+      />
       {bannedCount > 0 ? (
         <AlertStrip
           tone="warn"
@@ -127,7 +130,8 @@ export function OverviewPage({
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           }
-          bodyClassName="py-3"
+          className="flex flex-col"
+          bodyClassName="flex flex-1 flex-col py-3"
         >
           <div className="flex items-start justify-between">
             <div>
@@ -156,31 +160,34 @@ export function OverviewPage({
                       : "执行成功"}
               </div>
             </div>
-            <Button variant="secondary" size="sm" onClick={onRunAll}>
-              <Play className="h-3.5 w-3.5" />
+            <button
+              onClick={onRunAll}
+              className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium text-brand-ink underline-offset-2 hover:underline"
+            >
+              <Play className="h-3 w-3" />
               再跑一次
-            </Button>
+            </button>
           </div>
           {latestRun?.error ? (
             <div className="mt-3 rounded-md border border-danger/20 bg-danger-soft/40 px-2.5 py-2 text-[12px] text-danger">
               {latestRun.error}
             </div>
           ) : null}
-          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3">
+          <div className="mt-auto grid grid-cols-3 gap-2 rounded-md bg-canvas/70 px-3 py-2.5">
             <div>
-              <div className="text-[12px] text-muted">新增文件</div>
+              <div className="text-[12px] text-muted-ink">新增文件</div>
               <div className="mt-0.5 text-[14px] font-semibold tabular-nums">
                 {latestRun?.saved_total ?? 0}
               </div>
             </div>
             <div>
-              <div className="text-[12px] text-muted">有更新任务</div>
+              <div className="text-[12px] text-muted-ink">有更新任务</div>
               <div className="mt-0.5 text-[14px] font-semibold tabular-nums">
                 {latestRun?.tasks ? Object.keys(latestRun.tasks).length : 0}
               </div>
             </div>
             <div>
-              <div className="text-[12px] text-muted">开始时间</div>
+              <div className="text-[12px] text-muted-ink">开始时间</div>
               <div className="mt-0.5 font-mono text-[12px] font-medium">
                 {latestRun
                   ? new Date(latestRun.started_at).toLocaleTimeString("zh-CN", {
@@ -213,7 +220,7 @@ export function OverviewPage({
         />
       </PageSection>
 
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
           <PageSection
             title="需要处理"
             description={banned.length > 0 ? "失效链接会一直被跳过" : "没有需要处理的问题"}
@@ -228,7 +235,7 @@ export function OverviewPage({
             bodyClassName="p-0"
           >
             {banned.length === 0 ? (
-              <div className="flex items-center gap-2 px-4 py-5 text-[12px] text-muted">
+              <div className="flex items-center gap-2 px-4 py-5 text-[12px] text-muted-ink">
                 <CheckCircle2 className="h-4 w-4 text-ok" />
                 所有分享链接都有效。
               </div>
@@ -282,42 +289,13 @@ export function OverviewPage({
                     <div className="truncate text-[12px] font-medium text-ink">
                       {task.taskname}
                     </div>
-                    <div className="truncate font-mono text-[12px] text-muted">
+                    <div className="truncate font-mono text-[12px] text-muted-ink">
                       {task.next_run}
                     </div>
                   </div>
                   <TaskStatusBadge status={task.status} />
                 </button>
               ))}
-            </div>
-          </PageSection>
-
-          <PageSection title="快捷操作" bodyClassName="p-0">
-            <div className="divide-y divide-line-soft">
-              <button
-                onClick={onRunAll}
-                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-line-soft/40"
-              >
-                <Play className="h-3.5 w-3.5 shrink-0 text-brand" />
-                <span className="flex-1 text-[12px] font-medium text-ink">运行全部任务</span>
-                <span className="font-mono text-[12px] text-subtle">RUN ALL</span>
-              </button>
-              <button
-                onClick={() => onGoTasks()}
-                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-line-soft/40"
-              >
-                <ListChecks className="h-3.5 w-3.5 shrink-0 text-brand" />
-                <span className="flex-1 text-[12px] font-medium text-ink">任务列表</span>
-                <span className="font-mono text-[12px] text-subtle">TASKS</span>
-              </button>
-              <button
-                onClick={onGoSettings}
-                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-line-soft/40"
-              >
-                <Settings2 className="h-3.5 w-3.5 shrink-0 text-brand" />
-                <span className="flex-1 text-[12px] font-medium text-ink">插件设置</span>
-                <span className="font-mono text-[12px] text-subtle">PLUGINS</span>
-              </button>
             </div>
           </PageSection>
       </div>

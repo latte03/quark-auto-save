@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
-import { Loader2 } from "lucide-react";
-import { Sidebar } from "./components/layout/Sidebar";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type SetStateAction,
+} from "react";
+import { CircleAlert, Loader2 } from "lucide-react";
+import { AppSidebar } from "./components/layout/AppSidebar";
 import { Topbar } from "./components/layout/Topbar";
-import { Toast, type ToastData } from "./components/Toast";
+import { Toast, type ToastData, type ToastTone } from "./components/Toast";
+import { ConfirmDialog } from "./components/ConfirmDialog";
+import { deepEqual } from "./lib/compare";
+import { useBeforeUnload } from "./hooks/use-before-unload";
+import { applyTheme, readThemeMode, saveThemeMode, type ThemeMode } from "./lib/theme";
 import {
   Dialog,
   DialogBody,
@@ -13,15 +26,33 @@ import {
   DialogTitle,
 } from "./components/ui/dialog";
 import { Button } from "./components/ui/button";
+import { ScrollArea } from "./components/ui/scroll-area";
+import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { OverviewPage } from "./features/OverviewPage";
-import { TasksPage, type TaskFilter } from "./features/TasksPage";
-import { FilesPage } from "./features/FilesPage";
-import { RunsPage } from "./features/RunsPage";
-import { SettingsPage } from "./features/SettingsPage";
-import { TaskSheet } from "./features/TaskSheet";
-import { RunLogDialog } from "./features/RunLogDialog";
+import type { TaskFilter } from "./features/TasksPage";
 import { LoginPage } from "./features/LoginPage";
+
+// Everything except the landing page loads on first visit, so the initial
+// bundle stays close to the shell.
+const TasksPage = lazy(() =>
+  import("./features/TasksPage").then((module) => ({ default: module.TasksPage })),
+);
+const FilesPage = lazy(() =>
+  import("./features/FilesPage").then((module) => ({ default: module.FilesPage })),
+);
+const RunsPage = lazy(() =>
+  import("./features/RunsPage").then((module) => ({ default: module.RunsPage })),
+);
+const SettingsPage = lazy(() =>
+  import("./features/SettingsPage").then((module) => ({ default: module.SettingsPage })),
+);
+const TaskSheet = lazy(() =>
+  import("./features/TaskSheet").then((module) => ({ default: module.TaskSheet })),
+);
+const RunLogDialog = lazy(() =>
+  import("./features/RunLogDialog").then((module) => ({ default: module.RunLogDialog })),
+);
 import {
   ApiError,
   createTask,
@@ -34,6 +65,7 @@ import {
   logout,
   runStreamUrl,
   saveConfig,
+  setUnauthorizedHandler,
   startRun,
   startSignin,
   updateTask,
@@ -44,14 +76,17 @@ import type { AppConfig, Page, PluginConfig, RunView, Task, TasksPayload } from 
 export default function App() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [bootError, setBootError] = useState("");
+  const [expiredNotice, setExpiredNotice] = useState("");
+  const [theme, setTheme] = useState<ThemeMode>(readThemeMode);
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [savedConfig, setSavedConfig] = useState<AppConfig | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [pluginDefaults, setPluginDefaults] = useState<Record<string, PluginConfig>>({});
   const [pluginStatus, setPluginStatus] = useState<Record<string, boolean>>({});
   const [latestRun, setLatestRun] = useState<RunView | null>(null);
 
   const [page, setPage] = useState<Page>("overview");
-  const [mobileNav, setMobileNav] = useState(false);
+  const [leaveTarget, setLeaveTarget] = useState<Page | null>(null);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>("all");
   const [query, setQuery] = useState("");
   const [taskSheet, setTaskSheet] = useState<{ open: boolean; task: Task | null }>({
@@ -67,6 +102,7 @@ export default function App() {
 
   const toastTimer = useRef<number | null>(null);
   const streamRef = useRef<EventSource | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const lastRunRef = useRef<{
     indices: number[];
     write: boolean;
@@ -74,11 +110,16 @@ export default function App() {
     sign?: boolean;
   }>({ indices: [], write: true });
   const booted = useRef(false);
+  const checkingSession = useRef(false);
 
-  const notify = useCallback((message: string, tone: ToastData["tone"] = "info") => {
+  const notify = useCallback((message: string, tone: ToastTone = "info") => {
     setToast({ id: Date.now(), message, tone });
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 3200);
+    toastTimer.current = null;
+    // Failures stay until dismissed; success and hints fade on their own.
+    if (tone !== "error") {
+      toastTimer.current = window.setTimeout(() => setToast(null), 3200);
+    }
   }, []);
 
   const applyTasks = useCallback((payload: TasksPayload) => {
@@ -95,6 +136,64 @@ export default function App() {
   const closeStream = useCallback(() => {
     streamRef.current?.close();
     streamRef.current = null;
+  }, []);
+
+  const dropSession = useCallback(
+    (notice: string) => {
+      closeStream();
+      setRunning(false);
+      setLogOpen(false);
+      setTaskSheet({ open: false, task: null });
+      setConfig(null);
+      setTasks([]);
+      setLatestRun(null);
+      setExpiredNotice(notice);
+      setSession((prev) => ({
+        authenticated: false,
+        username: prev?.username ?? "",
+        version: prev?.version ?? "",
+      }));
+    },
+    [closeStream],
+  );
+
+  // Any 401 — REST or the run stream — means the cookie is gone; ask the
+  // server once, then fall back to the login form instead of a dead console.
+  const revalidateSession = useCallback(() => {
+    if (checkingSession.current) return;
+    checkingSession.current = true;
+    void getSession()
+      .then((info) => {
+        if (!info.authenticated) dropSession("登录状态已过期，请重新登录");
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        window.setTimeout(() => {
+          checkingSession.current = false;
+        }, 1000);
+      });
+  }, [dropSession]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(revalidateSession);
+    return () => setUnauthorizedHandler(null);
+  }, [revalidateSession]);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (theme !== "system") return;
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyTheme("system", query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, [theme]);
+
+  const changeTheme = useCallback((mode: ThemeMode) => {
+    saveThemeMode(mode);
+    setTheme(mode);
   }, []);
 
   const attachRun = useCallback(
@@ -127,35 +226,52 @@ export default function App() {
         if (source.readyState === EventSource.CLOSED) {
           if (streamRef.current === source) streamRef.current = null;
           setRunning(false);
+          revalidateSession();
         }
       };
     },
-    [closeStream, refreshTasks],
+    [closeStream, refreshTasks, revalidateSession],
   );
 
   const bootstrap = useCallback(async () => {
+    setBootError("");
     try {
       const info = await getSession();
       setSession(info);
       if (!info.authenticated) return;
       const [cfg, payload] = await Promise.all([getConfig(), getTasks()]);
       setConfig(cfg);
+      setSavedConfig(cfg);
       applyTasks(payload);
       void getLatestRun()
         .then((run) => setLatestRun(run))
         .catch(() => undefined);
       if (payload.running) attachRun(payload.running);
     } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401) {
+        dropSession("登录状态已过期，请重新登录");
+        return;
+      }
+      // Keep the shell in its loading state so the retry screen can come back.
       setBootError(cause instanceof Error ? cause.message : "加载失败");
-      setSession({ authenticated: false, username: "", version: "" });
     }
-  }, [applyTasks, attachRun]);
+  }, [applyTasks, attachRun, dropSession]);
 
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const viewport = el.closest("[data-slot=scroll-area-viewport]");
+    if (viewport instanceof HTMLElement) viewport.scrollTop = 0;
+    el.classList.remove("page-enter");
+    void el.offsetWidth;
+    el.classList.add("page-enter");
+  }, [page]);
 
   useEffect(
     () => () => {
@@ -202,7 +318,7 @@ export default function App() {
         attachRun(run_id);
       } catch (cause) {
         if (cause instanceof ApiError) {
-          notify(cause.message, "warn");
+          notify(cause.message, "error");
           if (cause.status === 409) {
             void getTasks()
               .then((payload) => {
@@ -213,7 +329,7 @@ export default function App() {
           }
           return;
         }
-        notify(cause instanceof Error ? cause.message : "启动失败", "warn");
+        notify(cause instanceof Error ? cause.message : "启动失败", "error");
       }
     },
     [applyTasks, attachRun, notify, running],
@@ -231,7 +347,7 @@ export default function App() {
         const { run_id } = await startRun([], false, task);
         attachRun(run_id);
       } catch (cause) {
-        notify(cause instanceof Error ? cause.message : "试运行启动失败", "warn");
+        notify(cause instanceof Error ? cause.message : "试运行启动失败", "error");
       }
     },
     [attachRun, notify, running],
@@ -246,7 +362,7 @@ export default function App() {
       const { run_id } = await startSignin();
       attachRun(run_id);
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "签到启动失败", "warn");
+      notify(cause instanceof Error ? cause.message : "签到启动失败", "error");
     }
   }, [attachRun, notify, running]);
 
@@ -275,7 +391,7 @@ export default function App() {
         setLog([]);
       }
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "读取运行记录失败", "warn");
+      notify(cause instanceof Error ? cause.message : "读取运行记录失败", "error");
     }
   }, [attachRun, notify, running]);
 
@@ -307,7 +423,7 @@ export default function App() {
         }
       }
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "保存失败", "warn");
+      notify(cause instanceof Error ? cause.message : "保存失败", "error");
     }
   };
 
@@ -319,9 +435,9 @@ export default function App() {
       const payload = await deleteTask(deleteTarget.index);
       setTasks(payload.tasks);
       setDeleteTarget(null);
-      notify("任务已删除", "warn");
+      notify("任务已删除", "ok");
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "删除失败", "warn");
+      notify(cause instanceof Error ? cause.message : "删除失败", "error");
     }
   };
 
@@ -337,8 +453,21 @@ export default function App() {
       local_download: config.local_download,
     });
     setConfig(saved);
+    setSavedConfig(saved);
     await refreshTasks();
   };
+
+  // Values the settings page fills in on its own (download dir, detected
+  // sources) are not unsaved edits, so the baseline absorbs them.
+  const [adoptTick, setAdoptTick] = useState(0);
+  const adoptedTick = useRef(0);
+  const adoptDefaults = useCallback(() => setAdoptTick((tick) => tick + 1), []);
+
+  useEffect(() => {
+    if (adoptTick === adoptedTick.current) return;
+    adoptedTick.current = adoptTick;
+    setSavedConfig(config);
+  }, [adoptTick, config]);
 
   const updateConfig = useCallback((updater: SetStateAction<AppConfig>) => {
     setConfig((prev) => {
@@ -347,18 +476,58 @@ export default function App() {
     });
   }, []);
 
+  const settingsDirty = Boolean(
+    page === "settings" && config && savedConfig && !deepEqual(config, savedConfig),
+  );
+  useBeforeUnload(settingsDirty);
+
+  // Leaving settings with edits asks first; the draft is thrown away, not saved.
+  const navigate = useCallback(
+    (next: Page) => {
+      if (next === page) return;
+      if (settingsDirty) {
+        setLeaveTarget(next);
+        return;
+      }
+      setPage(next);
+    },
+    [page, settingsDirty],
+  );
+
   const goTasks = (filter: TaskFilter = "all") => {
     setTaskFilter(filter);
-    setPage("tasks");
+    navigate("tasks");
   };
 
   if (!session) {
     return (
-      <div className="grid min-h-screen place-items-center bg-canvas">
-        <div className="flex items-center gap-2 text-[12px] text-muted">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {bootError || "正在连接控制台…"}
-        </div>
+      <div className="grid min-h-screen place-items-center bg-canvas px-4">
+        {bootError ? (
+          <div
+            role="alert"
+            className="flex w-full max-w-[420px] flex-col items-start gap-3 rounded-panel border border-danger/25 bg-panel px-4 py-3.5 shadow-panel"
+          >
+            <div className="flex items-center gap-2 text-[13px] font-medium text-ink">
+              <CircleAlert className="h-4 w-4 text-danger" />
+              无法连接控制台
+            </div>
+            <p className="text-[12px] leading-5 text-muted-ink">{bootError}</p>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                void bootstrap();
+              }}
+            >
+              重试
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-[12px] text-muted-ink">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            正在连接控制台…
+          </div>
+        )}
       </div>
     );
   }
@@ -366,7 +535,11 @@ export default function App() {
   if (!session.authenticated) {
     return (
       <>
-        <LoginPage version={session.version} onLogin={handleLogin} />
+        <LoginPage
+          version={session.version}
+          notice={expiredNotice}
+          onLogin={handleLogin}
+        />
         <Toast toast={toast} onClose={() => setToast(null)} />
       </>
     );
@@ -387,97 +560,108 @@ export default function App() {
   const searchReady = cloudReady || panReady;
 
   return (
-    <TooltipProvider delayDuration={220}>
-      <div className="flex min-h-screen bg-canvas">
-        <Sidebar
+    <TooltipProvider delay={220}>
+      <SidebarProvider
+        className="h-svh overflow-hidden bg-canvas"
+        style={{ "--sidebar-width": "232px" } as CSSProperties}
+      >
+        <AppSidebar
           page={page}
           taskCount={tasks.length}
           bannedCount={bannedCount}
           username={session.username}
           version={session.version}
-          mobileOpen={mobileNav}
-          onNavigate={setPage}
+          onNavigate={navigate}
           onLogout={handleLogout}
-          onClose={() => setMobileNav(false)}
         />
 
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <SidebarInset className="h-svh min-w-0 flex-col overflow-hidden bg-canvas">
           <Topbar
-            page={page}
-            search={query}
-            onSearch={(value) => {
-              setQuery(value);
-              if (value) setPage("tasks");
-            }}
-            onMenu={() => setMobileNav(true)}
+            search={page === "tasks" ? query : null}
+            onSearch={setQuery}
             onRunAll={() => void runTasks([], true)}
             onAddTask={openNewTask}
-            onOpenLog={() => setPage("runs")}
+            onOpenLog={() => navigate("runs")}
           />
 
-          <main className="flex-1 px-3 py-4 sm:px-4 lg:px-7 lg:py-5">
-            <div className="mx-auto w-full max-w-[1320px]">
-              {page === "overview" ? (
-                <OverviewPage
-                  tasks={tasks}
-                  bannedCount={bannedCount}
-                  latestRun={latestRun}
-                  onOpenTask={openTask}
-                  onRunTask={(task) =>
-                    task.index != null && void runTasks([task.index], true)
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="px-3 py-4 sm:px-4 lg:px-7 lg:py-5">
+              <div ref={contentRef} className="mx-auto w-full max-w-[1320px]">
+                <Suspense
+                  fallback={
+                    <div className="flex h-48 items-center justify-center text-muted-ink">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
                   }
-                  onDeleteTask={handleDelete}
-                  onRepairTask={openTask}
-                  onOpenLog={openLog}
-                  onRunAll={() => void runTasks([], true)}
-                  onGoTasks={goTasks}
-                  onGoSettings={() => setPage("settings")}
-                />
-              ) : null}
+                >
+                {page === "overview" ? (
+                  <OverviewPage
+                    tasks={tasks}
+                    bannedCount={bannedCount}
+                    latestRun={latestRun}
+                    onOpenTask={openTask}
+                    onRunTask={(task) =>
+                      task.index != null && void runTasks([task.index], true)
+                    }
+                    onDeleteTask={handleDelete}
+                    onRepairTask={openTask}
+                    onOpenLog={openLog}
+                    onRunAll={() => void runTasks([], true)}
+                    onGoTasks={goTasks}
+                  />
+                ) : null}
 
-              {page === "tasks" ? (
-                <TasksPage
-                  tasks={tasks}
-                  initialFilter={taskFilter}
-                  query={query}
-                  latestRun={latestRun}
-                  onQueryChange={setQuery}
-                  onOpenTask={openTask}
-                  onRunTask={(task) =>
-                    task.index != null && void runTasks([task.index], true)
-                  }
-                  onDeleteTask={handleDelete}
-                  onRepairTask={openTask}
-                />
-              ) : null}
+                {page === "tasks" ? (
+                  <TasksPage
+                    tasks={tasks}
+                    initialFilter={taskFilter}
+                    query={query}
+                    latestRun={latestRun}
+                    onQueryChange={setQuery}
+                    onOpenTask={openTask}
+                    onRunTask={(task) =>
+                      task.index != null && void runTasks([task.index], true)
+                    }
+                    onDeleteTask={handleDelete}
+                    onRepairTask={openTask}
+                  />
+                ) : null}
 
-              {page === "files" ? <FilesPage onNotify={notify} /> : null}
+                {page === "files" ? <FilesPage onNotify={notify} /> : null}
 
-              {page === "runs" ? (
-                <RunsPage running={running} onOpenActive={openLog} />
-              ) : null}
+                {page === "runs" ? (
+                  <RunsPage running={running} onOpenActive={openLog} />
+                ) : null}
 
-              {page === "settings" && config ? (
-                <SettingsPage
-                  config={config}
-                  setConfig={updateConfig}
-                  pluginStatus={pluginStatus}
-                  running={running}
-                  onSign={() => void runSign()}
-                  onSave={handleSettingsSave}
-                  onNotify={notify}
-                />
-              ) : null}
+                {page === "settings" && config ? (
+                  <SettingsPage
+                    config={config}
+                    setConfig={updateConfig}
+                    pluginStatus={pluginStatus}
+                    dirty={settingsDirty}
+                    running={running}
+                    theme={theme}
+                    onThemeChange={changeTheme}
+                    onSign={() => void runSign()}
+                    onSave={handleSettingsSave}
+                    onTasksReload={() => void refreshTasks()}
+                    onNotify={notify}
+                    onAdoptDefaults={adoptDefaults}
+                  />
+                ) : null}
+                </Suspense>
+              </div>
             </div>
-          </main>
-        </div>
-      </div>
+          </ScrollArea>
+        </SidebarInset>
+      </SidebarProvider>
 
+      <Suspense fallback={null}>
       <TaskSheet
         open={taskSheet.open}
         onOpenChange={(open) => setTaskSheet({ open, task: open ? taskSheet.task : null })}
         task={taskSheet.task}
-        magicRegex={config?.magic_regex ?? {}}
+        magicRegex={config?.magic_regex ?? []}
         pluginDefaults={pluginDefaults}
         searchReady={searchReady}
         onOpenSettings={() => {
@@ -489,15 +673,18 @@ export default function App() {
         onDelete={handleDelete}
         onNotify={notify}
       />
+      </Suspense>
 
-      <RunLogDialog
-        open={logOpen}
+      <Suspense fallback={null}>
+        <RunLogDialog
+          open={logOpen}
         onOpenChange={setLogOpen}
         lines={log}
         running={running}
         dry={dryRun || latestRun?.dry}
-        onRunAgain={rerun}
-      />
+          onRunAgain={rerun}
+        />
+      </Suspense>
 
       <Dialog
         open={Boolean(deleteTarget)}
@@ -521,14 +708,35 @@ export default function App() {
             <Button variant="secondary" size="sm" onClick={() => setDeleteTarget(null)}>
               取消
             </Button>
-            <Button variant="danger" size="sm" onClick={() => void confirmDelete()}>
+            <Button variant="destructive" size="sm" onClick={() => void confirmDelete()}>
               删除任务
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Toast toast={toast} onClose={() => setToast(null)} />
+      <ConfirmDialog
+        open={leaveTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setLeaveTarget(null);
+        }}
+        title="放弃未保存的设置？"
+        description="设置里有改动还没保存，离开后这些改动会丢失。"
+        confirmLabel="放弃更改"
+        cancelLabel="继续编辑"
+        onConfirm={() => {
+          const target = leaveTarget;
+          setLeaveTarget(null);
+          if (savedConfig) setConfig(savedConfig);
+          if (target) setPage(target);
+        }}
+      />
+
+      <Toast
+        toast={toast}
+        onClose={() => setToast(null)}
+        className={page === "settings" ? "bottom-[72px]" : undefined}
+      />
     </TooltipProvider>
   );
 }

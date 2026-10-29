@@ -6,6 +6,7 @@ import { cn } from "../lib/utils";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { EmptyState } from "../components/EmptyState";
+import { PageHeader } from "../components/PageHeader";
 import { RunLogDialog } from "./RunLogDialog";
 
 type RunsPageProps = {
@@ -79,9 +80,13 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-panel border border-line bg-panel">
-        <div className="flex items-center gap-2 border-b border-line px-3 py-2.5">
-          <ScrollText className="h-4 w-4 text-muted" strokeWidth={1.7} />
+      <PageHeader
+        title="运行记录"
+        description="每次运行的结果、时长与日志。"
+      />
+      <section className="overflow-hidden rounded-panel bg-panel shadow-panel">
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <ScrollText className="h-4 w-4 text-muted-ink" strokeWidth={1.7} />
           <h2 className="text-[14px] font-semibold text-ink">运行日志</h2>
           <span className="ml-auto font-mono text-[12px] text-subtle">
             {loading ? "读取中" : `${runs.length} 条`}
@@ -116,19 +121,19 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left" aria-label="运行日志">
+            <table className="w-full min-w-[620px] border-collapse text-left" aria-label="运行日志">
               <thead>
                 <tr className="border-b border-line bg-line-soft/35">
-                  <th className="h-8 px-3 text-[12px] font-medium text-muted">开始</th>
-                  <th className="h-8 px-3 text-[12px] font-medium text-muted">任务</th>
-                  <th className="h-8 w-[90px] px-3 text-[12px] font-medium text-muted">结果</th>
-                  <th className="hidden h-8 w-[80px] px-3 text-right text-[12px] font-medium text-muted sm:table-cell">
+                  <th className="h-8 px-3 text-[12px] font-medium text-muted-ink">开始</th>
+                  <th className="h-8 px-3 text-[12px] font-medium text-muted-ink">任务</th>
+                  <th className="h-8 w-[90px] px-3 text-[12px] font-medium text-muted-ink">结果</th>
+                  <th className="h-8 w-[80px] px-3 text-right text-[12px] font-medium text-muted-ink">
                     新增
                   </th>
-                  <th className="hidden h-8 w-[80px] px-3 text-right text-[12px] font-medium text-muted md:table-cell">
+                  <th className="h-8 w-[80px] px-3 text-right text-[12px] font-medium text-muted-ink">
                     时长
                   </th>
-                  <th className="h-8 w-[72px] px-3 text-right text-[12px] font-medium text-muted">
+                  <th className="h-8 w-[72px] px-3 text-right text-[12px] font-medium text-muted-ink">
                     日志
                   </th>
                 </tr>
@@ -139,7 +144,7 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
                     key={run.id}
                     className="group border-b border-line-soft transition-colors last:border-b-0 hover:bg-brand-soft/25"
                   >
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[12px] text-muted">
+                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[12px] text-muted-ink">
                       {formatTime(run.started_at)}
                     </td>
                     <td className="min-w-[140px] px-3 py-2">
@@ -158,10 +163,10 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
                         <Badge variant="info">进行中</Badge>
                       )}
                     </td>
-                    <td className="hidden px-3 py-2 text-right font-mono text-[12px] tabular-nums text-muted sm:table-cell">
+                    <td className="px-3 py-2 text-right font-mono text-[12px] tabular-nums text-muted-ink">
                       {run.saved_total}
                     </td>
-                    <td className="hidden px-3 py-2 text-right font-mono text-[12px] tabular-nums text-muted md:table-cell">
+                    <td className="px-3 py-2 text-right font-mono text-[12px] tabular-nums text-muted-ink">
                       {running && !run.done ? "—" : duration(run)}
                     </td>
                     <td className="px-3 py-2 text-right">

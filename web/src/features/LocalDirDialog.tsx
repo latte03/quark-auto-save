@@ -11,6 +11,7 @@ import { browseLocalDirs, type LocalDirBrowse } from "../lib/api";
 import { pickSharedDirectory } from "../lib/trim";
 import { cn } from "../lib/utils";
 import { Button } from "../components/ui/button";
+import type { ToastTone } from "../components/Toast";
 import {
   Dialog,
   DialogBody,
@@ -26,7 +27,7 @@ type LocalDirDialogProps = {
   onOpenChange: (open: boolean) => void;
   initial?: string;
   onSelect: (path: string) => void;
-  onNotify: (message: string, tone?: "info" | "ok" | "warn") => void;
+  onNotify: (message: string, tone?: ToastTone) => void;
 };
 
 // Pick a folder inside the administrator-approved roots; new authorisation is
@@ -124,7 +125,7 @@ export function LocalDirDialog({
             onClick={() => void loadPath()}
             className={cn(
               "rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
-              path === "" ? "font-medium text-ink" : "text-muted hover:text-ink",
+              path === "" ? "font-medium text-ink" : "text-muted-ink hover:text-ink",
             )}
           >
             已授权目录
@@ -136,7 +137,7 @@ export function LocalDirDialog({
                 onClick={() => void loadPath(root)}
                 className={cn(
                   "max-w-[220px] truncate rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
-                  path === root ? "font-medium text-ink" : "text-muted hover:text-ink",
+                  path === root ? "font-medium text-ink" : "text-muted-ink hover:text-ink",
                 )}
               >
                 {root}
@@ -153,7 +154,7 @@ export function LocalDirDialog({
                   onClick={() => void loadPath(target)}
                   className={cn(
                     "max-w-[160px] truncate rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
-                    current ? "font-medium text-ink" : "text-muted hover:text-ink",
+                    current ? "font-medium text-ink" : "text-muted-ink hover:text-ink",
                   )}
                 >
                   {segment}
@@ -165,7 +166,7 @@ export function LocalDirDialog({
 
         <DialogBody className="min-h-[220px] p-0">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-[12px] text-muted">
+            <div className="flex items-center justify-center gap-2 py-12 text-[12px] text-muted-ink">
               <Loader2 className="h-4 w-4 animate-spin" />
               正在读取…
             </div>
@@ -175,7 +176,7 @@ export function LocalDirDialog({
             </div>
           ) : path === "" ? (
             roots.length === 0 ? (
-              <div className="px-4 py-10 text-center text-[12px] text-muted">
+              <div className="px-4 py-10 text-center text-[12px] text-muted-ink">
                 还没有已授权目录，点击「新增授权」让管理员选择一个。
               </div>
             ) : (
@@ -186,7 +187,7 @@ export function LocalDirDialog({
                     onClick={() => void loadPath(item)}
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition-colors hover:bg-brand-soft/25"
                   >
-                    <HardDrive className="h-4 w-4 shrink-0 text-muted" strokeWidth={1.6} />
+                    <HardDrive className="h-4 w-4 shrink-0 text-muted-ink" strokeWidth={1.6} />
                     <span className="truncate font-mono text-[12px] text-ink">{item}</span>
                     <span className="ml-auto shrink-0 text-[11px] text-subtle">已授权</span>
                   </button>
@@ -201,11 +202,11 @@ export function LocalDirDialog({
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition-colors hover:bg-line-soft/40"
                 >
                   <FolderOpen className="h-4 w-4 shrink-0 text-amber-500" strokeWidth={1.6} />
-                  <span className="text-[13px] text-muted">上一级</span>
+                  <span className="text-[13px] text-muted-ink">上一级</span>
                 </button>
               ) : null}
               {data?.dirs.length === 0 ? (
-                <div className="px-4 py-10 text-center text-[12px] text-muted">
+                <div className="px-4 py-10 text-center text-[12px] text-muted-ink">
                   没有子目录，可以直接使用当前目录。
                 </div>
               ) : (
