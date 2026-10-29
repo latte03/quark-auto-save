@@ -1,217 +1,158 @@
 ---
 name: quark-auto-save
-description: Manage quark-auto-save tasks via CLI. (QAS, 夸克自动转存, 夸克转存, 夸克订阅, 管理任务, 运行任务, 修复失效链接, pan.quark.cn)
+description: 通过 HTTP API 管理 QAS 控制台（夸克自动转存 / quark-auto-save）：新增与修改追更任务、判断一次性还是订阅、修复失效分享链接、立即运行并跟日志、整理网盘文件。触发词：夸克转存、夸克订阅、auto-save、pan.quark.cn 链接、QAS 任务。
 metadata:
   openclaw:
     emoji: "💾"
-    homepage: "https://github.com/Cp0204/quark-auto-save"
+    homepage: "https://github.com/latte03/quark-auto-save"
     requires:
       env:
         - QAS_BASE_URL
         - QAS_TOKEN
       anyBins:
-        - curl
         - python3
     primaryEnv: QAS_TOKEN
 ---
 
-# quark-auto-save
+# QAS 控制台
 
-Manage quark-auto-save tasks via CLI.
+QAS 是一个自托管的夸克网盘转存服务：一个**任务** = 一个分享链接 + 保存路径 + 命名规则 + 运行时刻，按排程把新文件转存到网盘目录，并可触发本地下载与媒体库刷新。本技能通过它的 HTTP API 操作，不碰服务器上的文件。
 
-QAS, 夸克自动转存, 夸克转存, 夸克订阅, 管理任务, 运行任务, 修复失效链接
+## 前置
 
-When user send message like `https://pan.quark.cn/s/***`, get detail, add a QAS task.
+| 变量 | 说明 |
+| --- | --- |
+| `QAS_BASE_URL` | 必填，例如 `http://192.168.1.10:8710`（fnOS 应用的固定端口） |
+| `QAS_TOKEN` | 推荐。服务端 API token，`GET /api/config` 里的 `api_token` |
+| `QAS_USER` / `QAS_PASSWORD` | 没有 token 时用 WebUI 账号登录（会话只在本次调用内有效） |
 
-## ⚠️ Prerequisites
+脚本：`python3 {baseDir}/scripts/qas_client.py <命令>`，仅用标准库，无需安装依赖。
 
-**Env:**
-- `QAS_BASE_URL` -  User provided, e.g., http://192.168.1.x:5005
-- `QAS_TOKEN` - User provided
-
-> Set in the skill's env config (e.g., `openclaw.json` → `skills.entries.quark-auto-save.env.QAS_BASE_URL`). Restart gateway after editing.
-
-## First Configuration: Analyze User Habits
-
-After the user sets the token, the following analysis must be performed and recorded in TOOLS.md:
-
-1. **Get Current Configuration**:
-   ```bash
-   python3 {baseDir}/scripts/qas_client.py get-config
-   ```
-
-2. **Analyze Saving Habits**:
-   - Extract `savepath` directory patterns from existing tasks (e.g., `/video/tv/`, `/video/anime/`, `/video/movie/`)
-   - For `pattern` + `replace`: deduce the **final renamed filename** format by applying the regex to a sample source file (e.g., `01.mp4` → `Black Mirror.S01E01.mp4`). Record the result pattern, not the raw regex.
-   - Note which `magic_regex` key the user prefers (e.g. `$TV_MAGIC`)
-
-3. **Record to TOOLS.md**:
-   The following is just an example, not specific values, everything is analyzed based on user configuration.
-   ```markdown
-   ### quark-auto-save habits
-   #### TV Series
-      - Directory: `/video/tv/{name}`
-      - naming preferences: `$TV_MAGIC `(e.g., {TASKNAME}.{SXX}E{E}.{EXT})
-   #### Anime
-      - Directory: `/video/anime/{name}`
-      - naming preferences: `Rick and Morty.S01E01.mp4`
-   #### Movie
-      - Directory: `/video/movie/{name} {year}`
-      - naming preferences: `{TASKNAME}.mp4`
-   -
-   ...
-   ```
-
-## Python Client
-
-Use `{baseDir}/scripts/qas_client.py` for all operations:
+## 命令
 
 ```bash
-python3 {baseDir}/scripts/qas_client.py get-config                                    # Get all config & tasks
-python3 {baseDir}/scripts/qas_client.py search "query" [-d]                           # Search resources
-python3 {baseDir}/scripts/qas_client.py get-share "<shareurl>" [-a]                   # Get share detail (-a for all files)
-python3 {baseDir}/scripts/qas_client.py check-path "/path"                            # Check savepath
-python3 {baseDir}/scripts/qas_client.py delete-file "/path/to/file"                   # Delete cloud file
-python3 {baseDir}/scripts/qas_client.py rename-file "/path/to/file" "new_name"        # Rename cloud file
-python3 {baseDir}/scripts/qas_client.py add-task '{"taskname": "Name", ...}'          # Add task
-python3 {baseDir}/scripts/qas_client.py run-task [taskname|json]                      # Run task(s)
-python3 {baseDir}/scripts/qas_client.py update-task "TaskName" '{"savepath": "/new"}' # Update task
-python3 {baseDir}/scripts/qas_client.py delete-task "TaskName"                        # Delete task
-python3 {baseDir}/scripts/qas_client.py update-config '{"key": "value"}'              # Update config
+python3 qas_client.py status                      # 任务数 / 失效数 / 当前运行
+python3 qas_client.py tasks                       # 任务列表（精简字段）
+python3 qas_client.py tasks --json                # 完整字段
+python3 qas_client.py task "任务名"                # 单任务完整字段
+python3 qas_client.py magic                       # 魔法规则：id / 名称 / 正则
+python3 qas_client.py share "<shareurl>"          # 分享内容 + 命中/改名/已存在预览
+python3 qas_client.py validate "<shareurl>"       # 链接是否还能打开
+python3 qas_client.py add '{"taskname": "...", ...}' [--run --write]
+python3 qas_client.py update "任务名" '{"savepath": "/new/path"}'
+python3 qas_client.py rm "任务名" --yes
+python3 qas_client.py run "任务名" [--write] [--wait]
+python3 qas_client.py run --all [--write]
+python3 qas_client.py run --payload @task.json [--write --wait]   # 临时任务，不入库
+python3 qas_client.py browse "/影视/剧集"
+python3 qas_client.py search "关键词" [--deep]
+python3 qas_client.py runs --limit 5
+python3 qas_client.py log <run_id> [--tail 40]    # 已结束的运行
+python3 qas_client.py watch <run_id>              # 跟随运行中的日志
+python3 qas_client.py sign [--wait]               # 全部账号签到
+python3 qas_client.py mkdir "/影视/新目录"
+python3 qas_client.py rename "/影视/a.mkv" "b.mkv"
+python3 qas_client.py rm-file "/影视/a.mkv" --yes
+python3 qas_client.py config [--full]             # 配置（永不输出 cookie / token）
+python3 qas_client.py config-set '{"run_logs": {"keep": 30}}'
+python3 qas_client.py notify-test | downloads | session
 ```
 
-## Task Schema
+JSON 参数都可写成 `@文件路径`。
+
+## 任务字段
 
 ```json
 {
-  "taskname": "MediaName",
-  "shareurl": "https://pan.quark.cn/s/xxx#/list/share/fid",
-  "savepath": "/video/tv/MediaName",
-  "pattern": "$TV_MAGIC",
+  "taskname": "示例剧集",
+  "shareurl": "https://pan.quark.cn/s/abc123",
+  "savepath": "/影视/剧集/示例剧集",
+  "magic_id": "m3f2a1b0",
+  "pattern": "",
   "replace": "",
+  "runweek": [1, 2, 3, 4, 5, 6, 7],
+  "runtime": ["20:00", "22:30"],
+  "mode": "once",
   "update_subdir": "",
   "ignore_extension": false,
-  "runweek": [1,2,3,4,5,6,7]
+  "local_download": { "enable": true, "dir": "/vol1/1000/media/tv" },
+  "addition": { "emby": { "enable": true, "server": "http://emby:8096", "apikey": "..." } }
 }
 ```
 
-**Required Fields:** `taskname`, `shareurl`, `savepath`
+- **必填**：`taskname`、`shareurl`、`savepath`（不能是 `/`）。
+- `shareurl`：`https://pan.quark.cn/s/{id}`，带子目录时用 `#/list/share/{fid}`。
+- `runtime`：`HH:MM` 列表，**任务自己的运行时刻**；没有全局排程。
+- `runweek`：`1`=周一 … `7`=周日；缺省视为每天。
+- `mode`：留空 = 定时追更；`once` = 仅执行一次。一次性任务跑完会保留在列表里并标记完成（`once_done_at` 由服务端写，不要手工设置），「运行全部」会跳过它们；改动其内容后重新变为待执行。
+- `magic_id` + `pattern`/`replace`：二选一。用规则时只填 `magic_id`，`pattern` 留空；`pattern` 里写裸正则（不是规则名）。改名规则只改 `name`，不会影响任务。
+- `update_subdir`：只追某个子目录（如 `S02`）；`ignore_extension`：判断「已存在」时忽略扩展名。
+- `local_download`：任务级本地下载开关、目录与 `overwrite`（同名覆盖，默认关），目录需在管理员已授权范围内。开启后每次运行做两次增量：先转存网盘里新增的文件，再扫描保存目录，把云端有、本地没有的文件补下载。一次性任务要等下载队列跑完才会标记完成。
+- `addition`：插件块，键见下。
 
-**Optional Fields:** `pattern`, `replace`, `update_subdir`, `ignore_extension`, `runweek`, `addition`
+### 魔法变量（写进 `replace`）
 
-> `add-task` auto-detects zip/rar/7z files and enables `auto_unarchive` plugin automatically. No manual `addition` config needed for this.
+| 变量 | 含义 |
+| --- | --- |
+| `{TASKNAME}` | 任务名 |
+| `{I}` | 组内序号（01、02…） |
+| `{EXT}` | 扩展名 |
+| `{CHINESE}` | 中文片段 |
+| `{DATE}` / `{YEAR}` | 日期参数 / 年份 |
+| `{S}` / `{SXX}` | 季号（1 / S01） |
+| `{E}` | 集号 |
+| `{PART}` | 上中下 / 一二三 |
+| `{VER}` | 版本（如「国语版」） |
 
-## Configuration Rules
+没有匹配到变量的文件不会被转存——先用 `share` 看 `renamed` 是否符合预期，再落库。
 
-### `shareurl` Format
-- `https://pan.quark.cn/s/{abc123}`
-- `https://pan.quark.cn/s/{abc123}#/list/share/{fid}`
+### 插件（`addition` 的键）
 
-### Subdirectory Priority
-1. Video files (mp4, mkv, avi)
-2. Resolution: 4K > 1080P > 720P
+`emby`、`plex`、`fnv`（飞牛影视 v1）、`fnv_refresh_v2`（v2）、`alist`、`alist_strm_gen`、`alist_strm`、`alist_sync`、`aria2`、`auto_unarchive`、`smartstrm`。各插件字段见 `tasks --json` 里的 `task_plugins_default`，不要凭空编字段。
 
-> Archive files (zip, rar, 7z) are also supported — auto-unarchive is enabled automatically by `add-task` `run-task`.
+## 工作流
 
-**Get subdir info:**
-```bash
-python3 {baseDir}/scripts/qas_client.py get-share "<shareurl>"
-```
+### 1. 从分享链接建任务
 
-**Add task example:**
-```bash
-python3 {baseDir}/scripts/qas_client.py add-task '{"taskname": "Black Mirror", "shareurl": "https://pan.quark.cn/s/xxx", "savepath": "/video/tv/Black Mirror", "pattern": "$TV_MAGIC"}'
-```
+1. `validate "<shareurl>"`：`ok=false` 就换链接。
+2. `share "<shareurl>"`：看标题、目录结构、文件量；压缩包单文件时优先选它并配合 `auto_unarchive`。
+3. 与已有任务对齐习惯：`tasks --json` 看同类任务的 `savepath` / `magic_id` / `runtime`，新的保存路径和命名要与之一致。
+4. 需要改名时先验证：`share "<shareurl>" --task '{"taskname":"...","magic_id":"..."}'`，确认 `renamed` 列正是想要的最终文件名。
+5. 落库：`add '{...}'`。订阅型再加 `--run --write` 跑首轮（不加 `--write` 只演练）。
 
-## `pattern` & `replace`
+### 2. 定时追更还是只跑一次
 
-**WIKI:**
-- RegexRename: https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程
-- MagicRegex: https://github.com/Cp0204/quark-auto-save/wiki/魔法匹配和魔法变量
+- 连载、会更新 → 不设 `mode`，给 `runtime`（通常与同类任务一致）。
+- 完结合集、单部电影 → `"mode": "once"`，`add` 时直接 `--run --write`。
+- 拿不准就问一句：完结/连载决定它会不会长期占一条排程。
 
-| Pattern | Replace | Result |
-|---|---|---|
-| `.*` | | Save all files |
-| `\.(mp4\|mkv)$` | | Save video files only |
-| `^(\d+)\.mp4` | `S02E\1.mp4` | 01.mp4 → S02E01.mp4 |
-| `$TV_MAGIC` | | Use custom magic regex |
+### 3. 修复失效链接
 
-### `replace` Magic Variables
+1. `tasks` 里 `status` 为 `banned`（即 `shareurl_ban` 非空）的优先处理。
+2. `browse "<savepath>"` 看已存文件名与最新集号。
+3. `search "<任务名>"` 找候选，逐个 `share` 验证：格式要与已有文件一致（`mkv` 对 `mkv`），集号要覆盖到已有最新集之后。
+4. `update "任务名" '{"shareurl":"<新链接>","pattern":"","magic_id":"..."}'`——需要保持命名一致时再调规则。
+5. `run "任务名" --write --wait`，看日志确认新增集数。
 
-| Variable | Description |
-|---|---|
-| `{TASKNAME}` | Task name |
-| `{II}` | Index number (01, 02...) |
-| `{EXT}` | File extension |
-| `{SXX}` | Season (S01, S02...) |
-| `{E}` | Episode number |
-| `{DATE}` | Date (YYYYMMDD) |
+### 4. 运行与排错
 
-## Workflows
+- 一次只能跑一轮：`status` 的 `active_run` 非空时先 `watch` 它，或等结束。
+- 跟日志：`run ... --wait`；历史：`runs` → `log <id> --tail 40`。
+- 转存失败先看日志里的分享链接与正则报错，再决定改链接还是改规则。
 
-### Add New Task
-1. **Search**: `python3 {baseDir}/scripts/qas_client.py search "MediaName" -d`
-2. **Verify & Get Details**: `python3 {baseDir}/scripts/qas_client.py get-share "<shareurl>"`
-   - Check if `shareurl` is valid (not banned)
-   - Check file list for video files and select the subdir
-3. **Analyze `pattern` & `replace`**: Ensure the **final renamed filename** matches the naming preferences in TOOLS.md.
-   - Source already matches → `"pattern": ".*"`, `replace: ""` (save as-is)
-   - Needs renaming → design `pattern` to capture groups, `replace` with magic variables. E.g., source `01.mp4`, TOOLS.md says `Black Mirror.S01E01.mp4` → `"pattern": "^(\\d+)\\.mp4$", "replace": "{TASKNAME}.S01E\\1.{EXT}"`
-4. **Execute**:
-   - **One-time** (completed series, taskname contains `X集全`, `全X集`, `完结`, `全集`, single movie) → `run-task`
-   - **Subscription** (ongoing series that gets new episodes) → `add-task`
-   ```bash
-   # One-time (completed)
-   python3 {baseDir}/scripts/qas_client.py run-task '{"taskname": "MediaName", "shareurl": "...", "savepath": "...", "pattern": "...", "replace": "..."}'
-   # Subscription (ongoing)
-   python3 {baseDir}/scripts/qas_client.py add-task '{"taskname": "MediaName", "shareurl": "...", "savepath": "...", "pattern": "...", "replace": "..."}'
-   ```
-   - `savepath` and (`pattern`+`replace`) MUST follow the user's existing habits recorded in TOOLS.md
-   - **After add-task**: trigger `run-task "TaskName"` immediately to execute the first save.
+### 5. 配置
 
-### Check Invalid Tasks
-1. **Get tasks**: `python3 {baseDir}/scripts/qas_client.py get-config`
-2. **Identify invalid tasks**: tasks with `shareurl_ban` key in tasklist
-3. **Check existing files**: `python3 {baseDir}/scripts/qas_client.py check-path "<task_savepath>"` — record the naming format and the **latest episode number** (e.g., E24) of already-saved files
-4. **Find replacement**: `python3 {baseDir}/scripts/qas_client.py search "<taskname>" -d` to get candidate shareurls
-5. **Verify & select shareurl**:
-   - `python3 {baseDir}/scripts/qas_client.py get-share "<candidate_shareurl>" -a` — check file list
-   - **Step 1 — Pick by video format**: prefer the shareurl whose file extension matches the existing files (e.g., existing `.mkv` → pick `.mkv` source, existing `.mp4` → pick `.mp4` source)
-   - **Step 2 — Prefer newer episodes**: among candidates with matching format, pick the one whose episode range extends **beyond the latest episode** (e.g., existing up to E24 → pick shareurl containing E25+)
-   - **Step 3 — Ensure naming consistency**: analyze the source filenames against the existing file naming format. Update `pattern`/`replace` so the **final renamed result** matches the existing naming. If source already matches, keep `pattern`/`replace` unchanged.
-6. **Update task**: `python3 {baseDir}/scripts/qas_client.py update-task "TaskName" '{"shareurl": "<verified_url>", "shareurl_ban": "", "pattern": "...", "replace": "..."}'` — include `pattern`/`replace` if they were adjusted
-7. **Trigger run**: `python3 {baseDir}/scripts/qas_client.py run-task "TaskName"` — execute immediately after fixing the link.
+可写键：`cookie`、`crontab`、`push_config`、`plugins`、`magic_regex`、`source`、`local_download`、`run_logs`。`cookie` 一律不通过 CLI 写（脚本会拒绝），扫码登录在控制台做。
 
-### Delete Task
-```bash
-python3 {baseDir}/scripts/qas_client.py delete-task "TaskName"
-```
+## 输出
 
-### Update Task
-```bash
-# Partial update (only specified fields are changed)
-python3 {baseDir}/scripts/qas_client.py update-task "TaskName" '{"savepath": "/new/path"}'
-python3 {baseDir}/scripts/qas_client.py update-task "TaskName" '{"pattern": "$TV_MAGIC", "runweek": [1,3,5]}'
-```
+- `OK` 或 `OK <单行 JSON>`：成功；列表类命令已做字段裁剪，`--json` 才是全量。
+- `ERROR: 原因`：失败，命令以非 0 退出。
+- `log` / `watch`：先一行 JSON 摘要，随后逐行日志。
 
-### Update Config
-```bash
-# Update global config (allowed keys: cookie, crontab, push_config, tasklist, magic_regex, plugins, source)
-python3 {baseDir}/scripts/qas_client.py update-config '{"crontab": "0 9 * * *"}'
-```
+## 边界
 
-### Run Tasks
-```bash
-python3 {baseDir}/scripts/qas_client.py run-task             # All tasks
-python3 {baseDir}/scripts/qas_client.py run-task "TaskName"  # Specific task
-python3 {baseDir}/scripts/qas_client.py run-task '{"taskname": "Test", ...}'  # Direct task
-```
-
-## Output Format
-
-All commands output text. First word indicates status:
-
-- **OK** — success, no data
-- **OK {json}** — success with data (JSON on same line)
-- **ERROR: message** — failure
-- **run-task**: `OK` on first line, followed by log lines
+- 默认演练：不写 `--write` 不会真的转存；`rm` / `rm-file` 必须显式 `--yes`。
+- 不要打印或回显 cookie、`api_token`、推送密钥；需要凭据时让用户在控制台操作。
+- 不要改 `webui` 密码，也不要直接删服务器上的配置文件。
+- 删除任务不会删除已转存的文件；删除网盘文件是进回收站，仍属破坏性操作，先说明再执行。

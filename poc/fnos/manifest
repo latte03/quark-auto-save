@@ -1,5 +1,5 @@
 appname=qas
-version=0.3.0
+version=0.3.3
 display_name=QAS 控制台
 desc=自托管夸克自动转存控制台（Go + React）。
 source=thirdparty
@@ -15,4 +15,4 @@ desktop_applaunchname=qas.main
 service_port=8710
 checkport=true
 ctl_stop=true
-changelog=新增内置本地下载（任务级开关/目录、Range 续传、并发、空间阈值、同名覆盖）与文件页下载队列；新增落盘的运行日志页，可配置保留条数并自动清理；任务弹窗试运行不再关闭；插件覆盖还原；下拉统一为 Radix Select。
+changelog=本地下载：大文件分段并发（≥64MB，8/16 路）绕开单连接限速，显示实时速度与字节进度，队列支持暂停/继续/取消，覆盖同名文件下沉到任务；单次任务等下载结束才标记完成；下载改为网盘新增 + 本地缺失双增量；文件删除/重命名按父目录解析 fid；任务抽屉排程上移、规则与插件默认折叠、标题与标签层级调整。
