@@ -1,228 +1,66 @@
-<div align="center">
+# QAS · 夸克自动转存
 
-![quark-logo](img/icon.png)
-
-# 夸克网盘自动转存
-
-夸克网盘签到、自动转存、命名整理、发推送提醒和刷新媒体库一条龙。
-
-对于一些持续更新的资源，隔段时间去转存十分麻烦。
-
-定期执行本脚本自动转存、文件名整理，配合 [SmartStrm](https://github.com/Cp0204/SmartStrm) / [OpenList](https://github.com/OpenListTeam/OpenList) , Emby 可达到自动追更的效果。🥳
-
-
-[![zread](https://img.shields.io/badge/Ask_AI-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/Cp0204/quark-auto-save) [![skill](https://img.shields.io/badge/🦞-ClawHub%20Skill-orange?logo=openclaw)](https://clawhub.ai/Cp0204/quark-auto-save)
-
-[![wiki][wiki-image]][wiki-url] [![github releases][gitHub-releases-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
-
-[wiki-image]: https://img.shields.io/badge/wiki-Documents-green?logo=github
-[gitHub-releases-image]: https://img.shields.io/github/v/release/Cp0204/quark-auto-save?logo=github
-[docker-pulls-image]: https://img.shields.io/docker/pulls/cp0204/quark-auto-save?logo=docker&&logoColor=white
-[docker-image-size-image]: https://img.shields.io/docker/image-size/cp0204/quark-auto-save?logo=docker&&logoColor=white
-[github-url]: https://github.com/Cp0204/quark-auto-save
-[docker-url]: https://hub.docker.com/r/cp0204/quark-auto-save
-[wiki-url]: https://github.com/Cp0204/quark-auto-save/wiki
-
-![run_log](img/run_log.png)
-
-</div>
-
-> [!CAUTION]
-> ⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
-
-> [!NOTE]
-> 开发者≠客服，开源免费≠帮你解决使用问题；本项目 Wiki 已经相对完善，遇到问题请先翻阅 Issues 和 Wiki ，请勿盲目发问。
+自托管的夸克网盘自动转存控制台：Go 服务端 + React 控制台，打包为飞牛 fnOS 应用（应用 ID `qas`，端口 `8710`）。受众是单个管理员，所有配置都落在一个 `config.json` 里。
 
 ## 功能
 
-- 部署方式
-  - [x] 可能~~兼容青龙~~
-  - [x] Docker 部署，WebUI 配置
+- **任务追更**：一个任务 = 一个分享链接 + 保存路径 + 魔法正则；按任务设置多个运行时刻（精确到分钟、按星期过滤），也可设为「仅执行一次」。
+- **魔法正则**：稳定 `id` 的命名规则，改名不影响已引用它的任务；任务里以下拉两行展示规则名与正则。
+- **插件**：Emby / Plex / 飞牛影视 v1·v2 / Alist 四个变体 / Aria2 / 自动云解压 / SmartStrm，按任务开关，跟随转存结果执行。
+- **本地下载**：任务级开关与目录，Range 续传、并发上限、最小剩余空间、同名覆盖；文件页有下载队列。
+- **通知**：Console / Bark / Telegram / SMTP / Server 酱 / 钉钉 / 飞书等渠道，签到与任务结果可推送。
+- **账号**：扫码登录直接写入主账号 Cookie；多账号时第一个账号执行转存、全部账号执行签到。
+- **运行记录**：落盘日志，可配置保留条数并自动清理；支持试运行与整轮重跑。
+- **MCP**：`qas mcp` 以 stdio 方式提供工具，供 Claude / Cursor 等客户端调用。
 
-- 分享链接
-  - [x] 支持分享链接的子目录
-  - [x] 记录失效分享并跳过任务
-  - [x] 支持需提取码的分享链接 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#支持需提取码的分享链接)</sup>
-  - [x] 智能搜索资源并自动填充 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源)</sup>
+## 目录
 
-- 文件管理
-  - [x] 目标目录不存在时自动新建
-  - [x] 跳过已转存过的文件
-  - [x] 正则过滤要转存的文件名
-  - [x] 转存后文件名整理（正则替换）
-  - [x] 可选忽略文件后缀
-
-- 任务管理
-  - [x] 支持多组任务
-  - [x] 任务结束期限，期限后不执行此任务
-  - [x] 可单独指定子任务星期几执行
-
-- 媒体库整合
-  - [x] 根据任务名搜索 Emby 媒体库
-  - [x] 追更或整理后自动刷新 Emby 媒体库
-  - [x] 插件模块化，允许自行开发和挂载[插件](./plugins)
-
-- 其它
-  - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间)</sup>
-  - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置)</sup>
-  - [x] 支持多账号（多账号签到，仅首账号转存）
-
-## 部署
-
-### Docker 部署
-
-Docker 部署提供 WebUI 进行管理配置，部署命令：
-
-```shell
-docker run -d \
-  --name quark-auto-save \
-  -p 5005:5005 \ # 映射端口，:前的可以改，即部署后访问的端口，:后的不可改
-  -e WEBUI_USERNAME=admin \
-  -e WEBUI_PASSWORD=admin123 \
-  -v ./quark-auto-save/config:/app/config \ # 必须，配置持久化
-  -v ./quark-auto-save/media:/media \ # 可选，模块alist_strm_gen生成strm使用
-  --network bridge \
-  --restart unless-stopped \
-  cp0204/quark-auto-save:latest
-  # registry.cn-shenzhen.aliyuncs.com/cp0204/quark-auto-save:latest # 国内镜像地址
+```
+poc/            Go 服务端（module qas-poc），子命令在 main.go：
+                probe / ls / save / rename / run / sign / notify-test / serve / mcp / dump
+  quark         夸克网盘客户端与配置模型
+  server        REST + SSE + 静态资源
+  plugins       插件协议与实现
+  notify        通知渠道
+  signin        签到编排
+  fnos/          fnOS 打包（manifest、生命周期脚本、图标、build.sh）
+  tools/         Python 对照生成器（Go 测试用夹具）
+web/            React 19 + Vite 8 + TypeScript + shadcn（Base UI）控制台
+skills/         内置技能（供 Agent 调用本项目的 CLI）
 ```
 
-docker-compose.yml
+## 本地开发
 
-```yaml
-name: quark-auto-save
-services:
-  quark-auto-save:
-    image: cp0204/quark-auto-save:latest
-    container_name: quark-auto-save
-    network_mode: bridge
-    ports:
-      - 5005:5005
-    restart: unless-stopped
-    environment:
-      WEBUI_USERNAME: "admin"
-      WEBUI_PASSWORD: "admin123"
-    volumes:
-      - ./quark-auto-save/config:/app/config
-      - ./quark-auto-save/media:/media
+依赖 Go 1.26+、Node 22+、pnpm。
+
+```bash
+# 服务端（默认读 CONFIG_PATH 或 ./config/quark_config.json）
+cd poc && go run . serve -config ../config/quark_config.json -addr 127.0.0.1:8710
+
+# 控制台（Vite 把 /api 代理到 127.0.0.1:8710）
+cd web && pnpm install && pnpm dev
 ```
 
-管理地址：http://yourhost:5005
+首次启动时若 `webui` 账号为空，服务端会在日志里打印随机密码；登录后可在设置里改。
 
-| 环境变量         | 默认       | 备注                                     |
-| ---------------- | ---------- | ---------------------------------------- |
-| `WEBUI_USERNAME` | `admin`    | 管理账号                                 |
-| `WEBUI_PASSWORD` | `admin123` | 管理密码                                 |
-| `PORT`           | `5005`     | 管理后台端口                             |
-| `PLUGIN_FLAGS`   |            | 插件标志，如 `-emby,-aria2` 禁用某些插件 |
-| `TASK_TIMEOUT`   | `1800`     | 任务执行超时时间（秒），超时则任务结束   |
+## 构建与打包
 
-#### 一键更新
-
-```shell
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR quark-auto-save
+```bash
+cd web && pnpm build                 # 产物在 web/dist
+poc/fnos/build.sh                    # 需要 fnpack，输出 dist/qas_<version>_x86.fpk
 ```
 
-<details open>
-<summary>WebUI 预览</summary>
+## 测试
 
-![screenshot_webui](img/screenshot_webui-1.png)
+```bash
+cd poc && go test ./...              # 含真实任务夹具与 Python 对照
+cd web && pnpm typecheck && pnpm test
+```
 
-![screenshot_webui](img/screenshot_webui-2.png)
+## 配置与安全
 
-</details>
+- 配置文件默认 `config/quark_config.json`（fnOS 安装后为应用私有目录），里面含夸克 Cookie、WebUI 密码与推送渠道密钥，不要提交到仓库。
+- WebUI 用 HttpOnly Cookie 会话；接口与 SSE 在会话失效时统一返回 401，控制台会退回登录页。
+- 转存与重命名默认演练，只有 `-write` 才真正执行；转存产生的文件不会被自动删除。
 
-## 使用说明
-
-### 正则处理示例
-
-| pattern                                | replace                 | 效果                                                                   |
-| -------------------------------------- | ----------------------- | ---------------------------------------------------------------------- |
-| `.*`                                   |                         | 无脑转存所有文件，不整理                                               |
-| `\.mp4$`                               |                         | 转存所有 `.mp4` 后缀的文件                                             |
-| `^【电影TT】花好月圆(\d+)\.(mp4\|mkv)` | `\1.\2`                 | 【电影TT】花好月圆01.mp4 → 01.mp4<br>【电影TT】花好月圆02.mkv → 02.mkv |
-| `^(\d+)\.mp4`                          | `S02E\1.mp4`            | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
-| `$TV`                                  |                         | [魔法匹配](#魔法匹配)剧集文件                                          |
-| `^(\d+)\.mp4`                          | `{TASKNAME}.S02E\1.mp4` | 01.mp4 → 任务名.S02E01.mp4                                             |
-
-更多正则使用说明：[正则处理教程](https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程)
-
-> [!TIP]
->
-> **魔法匹配和魔法变量**：在正则处理中，我们定义了一些“魔法匹配”模式，如果 表达式 的值以 $ 开头且 替换式 留空，程序将自动使用预设的正则表达式进行匹配和替换。
->
-> 自 v0.6.0 开始，支持更多以 {} 包裹的我称之为“魔法变量”，可以更灵活地进行重命名。
->
-> 更多说明请看[魔法匹配和魔法变量](https://github.com/Cp0204/quark-auto-save/wiki/魔法匹配和魔法变量)
-
-### 刷新媒体库
-
-在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[插件配置](https://github.com/Cp0204/quark-auto-save/wiki/插件配置)
-
-媒体库模块以插件的方式的集成，如果你有兴趣请参考[插件开发指南](https://github.com/Cp0204/quark-auto-save/tree/main/plugins)。
-
-### 更多使用技巧
-
-请参考 Wiki ：[使用技巧集锦](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦)
-
-## 生态项目
-
-以下展示 QAS 生态项目，包括官方项目和第三方项目。
-
-### 官方项目
-
-* [QAS一键推送助手](https://greasyfork.org/zh-CN/scripts/533201-qas一键推送助手)
-
-  油猴脚本，在夸克网盘分享页面添加推送到 QAS 的按钮
-
-* [SmartStrm](https://github.com/Cp0204/SmartStrm)
-
-  STRM 文件生成工具，用于转存后处理，媒体免下载入库播放。
-
-### 第三方开源项目
-
-> [!TIP]
->
-> 以下第三方开源项目均由社区开发并保持开源，与 QAS 作者无直接关联。在部署到生产环境前，请自行评估相关风险。
->
-> 如果您有新的项目没有在此列出，可以通过 Issues 提交。
-
-* [nonebot-plugin-quark-autosave](https://github.com/fllesser/nonebot-plugin-quark-autosave)
-
-  QAS Telegram 机器人，快速管理自动转存任务
-
-* [Astrbot_plugin_quarksave](https://github.com/lm379/astrbot_plugin_quarksave)
-
-  AstrBot 插件，调用 quark_auto_save 实现自动转存资源到夸克网盘
-
-* [Telegram 媒体资源管理机器人](https://github.com/2beetle/tgbot)
-
-  一个功能丰富的 Telegram 机器人，专注于媒体资源管理、Emby 集成、自动下载和夸克网盘资源管理。
-
-## 打赏
-
-如果这个项目让你受益，你可以无偿赠与我1块钱，让我知道开源有价值。谢谢！
-
-![WeChatPay](https://cdn.jsdelivr.net/gh/Cp0204/Cp0204@main/img/wechat_pay_qrcode.png)
-
-## 声明
-
-本项目为个人兴趣开发，旨在通过程序自动化提高网盘使用效率。
-
-程序没有任何破解行为，只是对于夸克已有的API进行封装，所有数据来自于夸克官方API；本人不对网盘内容负责、不对夸克官方API未来可能的变动导致的影响负责，请自行斟酌使用。
-
-开源仅供学习与交流使用，未盈利也未授权商业使用，严禁用于非法用途。
-
-## LICENSE
-
-本项目基于 [AGPL-3.0](LICENSE)  协议开源，这意味着：
-
-1. **传染性与开源义务**：任何使用了本项目代码的作品（包括修改或链接）在分发时，必须以 AGPL-3.0 开源。
-2. **网络服务也需开源**：基于该项目衍生的网络服务（如 API、Web 等）需要向用户提供修改后源代码的获取方式。
-3. **修改与分发要求**：必须保留原版权声明和许可证、修改后的文件需标注修改说明、分发时必须提供完整的源代码。
-
-## Sponsor
-
-CDN acceleration and security protection for this project are sponsored by Tencent EdgeOne.
-
-<a href="https://edgeone.ai/?from=github" target="_blank"><img title="Best Asian CDN, Edge, and Secure Solutions - Tencent EdgeOne" src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" width="300"></a>
+产品背景与取舍见 [归档的产品简报](docs/archive/PRODUCT.md)。
