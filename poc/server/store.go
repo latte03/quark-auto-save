@@ -129,6 +129,8 @@ func ensureDefaults(cfg *quark.Config) (defaultsNotice, error) {
 			localDownload = mergeLocalDownload(localDownload, stored)
 		}
 	}
+	// Overwrite moved to the task itself; drop the retired global key.
+	delete(localDownload, "overwrite")
 	if err := cfg.SetKey("local_download", localDownload); err != nil {
 		return notice, err
 	}
@@ -151,7 +153,6 @@ func defaultLocalDownload() map[string]any {
 		"dir":         "",
 		"concurrency": 2,
 		"min_free_gb": 5,
-		"overwrite":   false,
 	}
 }
 
@@ -531,6 +532,25 @@ func (s *Store) ApplyRunResults(bans map[int]string, additions map[int]json.RawM
 		}
 	}
 	return s.cfg.Save()
+}
+
+// MarkOnceDone completes a one-shot task after its download finished. The
+// task is looked up by name because the config may have been edited since the
+// run started; unknown or already-finished tasks are ignored.
+func (s *Store) MarkOnceDone(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, task := range s.cfg.Tasks {
+		if task.TaskName != name {
+			continue
+		}
+		if !task.IsOnce() || task.OnceDoneAt != "" {
+			return nil
+		}
+		task.OnceDoneAt = time.Now().Format(time.RFC3339)
+		return s.cfg.Save()
+	}
+	return nil
 }
 
 // RenameMagic changes only the display name of a rule. Tasks reference the

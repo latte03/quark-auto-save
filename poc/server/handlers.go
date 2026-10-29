@@ -18,6 +18,17 @@ import (
 	"qas-poc/source"
 )
 
+// runnableTask reports whether a manual run should include the task. One-shot
+// tasks ignore the weekday and end date: the operator triggers them by hand,
+// so a leftover schedule from the task they were converted from must not skip
+// the run.
+func runnableTask(task *quark.Task, now time.Time) (bool, error) {
+	if task.IsOnce() {
+		return true, nil
+	}
+	return task.IsScheduled(now)
+}
+
 // executeRun is the goroutine body behind /api/run, /api/sign and the scheduler.
 func (s *Server) executeRun(run *Run, spec runSpec) error {
 	started := time.Now()
@@ -168,7 +179,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 			continue
 		}
 
-		scheduled, err := task.IsScheduled(time.Now())
+		scheduled, err := runnableTask(task, time.Now())
 		if err != nil {
 			logf("✗ 任务周期解析失败: %v", err)
 			continue
@@ -189,10 +200,29 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 				bans[index] = task.ShareURLBan
 			}
 		}
-		// A one-shot task is finished once a real run went through, even if
-		// the share had nothing new; failures and bans keep it runnable.
-		if write && index >= 0 && task.IsOnce() && !task.OnceFinished() && task.ShareURLBan == "" {
-			completed[index] = true
+		// A one-shot task finishes when its download job finishes; one that
+		// needs no download is done as soon as the transfer succeeded.
+		// Failures and bans keep it runnable.
+		finishOnce := func(queued bool) {
+			if !write || index < 0 || !task.IsOnce() || task.OnceFinished() || task.ShareURLBan != "" {
+				return
+			}
+			if !queued {
+				completed[index] = true
+			}
+		}
+		var onDownloadDone func(string)
+		if write && task.IsOnce() && !task.OnceFinished() {
+			onDownloadDone = func(status string) {
+				// A canceled download leaves the task pending so it can be
+				// retried; a failed one still completes (the transfer worked).
+				if status == "canceled" {
+					return
+				}
+				if err := s.store.MarkOnceDone(task.TaskName); err != nil {
+					s.logger.Printf("标记单次任务完成失败: %v", err)
+				}
+			}
 		}
 		if err := task.MergePluginDefaults(pluginList); err != nil {
 			logf("✗ 合并插件默认配置失败: %v", err)
@@ -201,6 +231,13 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 			additions[index] = task.Addition
 		}
 		if tree == nil || tree.Size() == 0 {
+			// Nothing new in the cloud, but the NAS may still be missing
+			// files from earlier runs.
+			queued := false
+			if write {
+				queued = s.enqueueTaskDownload(task, nil, snapshot.Download, client, logf, onDownloadDone)
+			}
+			finishOnce(queued)
 			continue
 		}
 		count := countSavedFiles(tree)
@@ -221,7 +258,8 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 				HTTP:        pluginHTTP,
 			})
 		}
-		s.enqueueTaskDownload(task, tree, snapshot.Download, client, logf)
+		queued := s.enqueueTaskDownload(task, tree, snapshot.Download, client, logf, onDownloadDone)
+		finishOnce(queued)
 	}
 
 	if write {
@@ -770,6 +808,10 @@ func (s *Server) handleNotifyTest(w http.ResponseWriter, r *http.Request) {
 
 // resolveFID maps a cloud path (or an explicit fid) to a file id. The root is
 // never a valid target for rename/delete.
+//
+// Quark's path_list endpoint resolves directories only; files must be looked
+// up by listing the parent directory and matching the name, which is also how
+// the upstream Python client did it.
 func resolveFID(client *quark.Client, path, fid string) (string, error) {
 	if value := strings.TrimSpace(fid); value != "" {
 		if value == "0" {
@@ -781,25 +823,52 @@ func resolveFID(client *quark.Client, path, fid string) (string, error) {
 	if len(path) > 1 {
 		path = strings.TrimRight(path, "/")
 	}
-	if path == "" {
+	switch path {
+	case "":
 		return "", errors.New("缺少 path 或 fid")
-	}
-	if path == "/" {
+	case "/":
 		return "", errors.New("不能操作根目录")
 	}
-	items, err := client.GetFids([]string{path})
+
+	parent, name := splitCloudPath(path)
+	parentFID := "0"
+	if parent != "/" {
+		items, err := client.GetFids([]string{parent})
+		if err != nil {
+			return "", err
+		}
+		for _, item := range items {
+			if item.FilePath == parent && item.FID != "" {
+				parentFID = item.FID
+				break
+			}
+		}
+		if parentFID == "0" {
+			return "", fmt.Errorf("路径不存在：%s", parent)
+		}
+	}
+
+	entries, err := client.LsDir(parentFID)
 	if err != nil {
 		return "", err
 	}
-	for _, item := range items {
-		if item.FilePath == path && item.FID != "" {
-			return item.FID, nil
+	for _, entry := range entries {
+		if entry.FileName == name && entry.FID != "" {
+			return entry.FID, nil
 		}
 	}
-	if len(items) == 1 && items[0].FID != "" {
-		return items[0].FID, nil
+	return "", fmt.Errorf("路径不存在：%s", path)
+}
+
+// splitCloudPath splits a normalized path into its parent directory and the
+// final name ("/a/b/c" -> "/a/b", "c"; "/c" -> "/", "c").
+func splitCloudPath(path string) (string, string) {
+	index := strings.LastIndex(path, "/")
+	parent := path[:index]
+	if parent == "" {
+		parent = "/"
 	}
-	return "", fmt.Errorf("未找到: %s", path)
+	return parent, path[index+1:]
 }
 
 func (s *Server) guardIdle(w http.ResponseWriter) bool {

@@ -18,7 +18,6 @@ type localDownloadSettings struct {
 	Dir         string
 	Concurrency int
 	MinFreeGB   int64
-	Overwrite   bool
 }
 
 // LocalDownload reads the global download defaults from the config.
@@ -38,7 +37,6 @@ func localDownloadFromConfig(cfg *quark.Config) localDownloadSettings {
 		Dir         string `json:"dir"`
 		Concurrency int    `json:"concurrency"`
 		MinFreeGB   int64  `json:"min_free_gb"`
-		Overwrite   bool   `json:"overwrite"`
 	}
 	if err := json.Unmarshal(raw, &stored); err != nil {
 		return settings
@@ -50,7 +48,6 @@ func localDownloadFromConfig(cfg *quark.Config) localDownloadSettings {
 	if stored.MinFreeGB >= 0 {
 		settings.MinFreeGB = stored.MinFreeGB
 	}
-	settings.Overwrite = stored.Overwrite
 	return settings
 }
 

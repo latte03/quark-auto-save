@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"qas-poc/quark"
 )
@@ -45,7 +48,7 @@ func TestFetchFileResumes(t *testing.T) {
 	}
 
 	queue := newDownloadQueue(nil)
-	size, err := queue.fetchFile(server.URL, "", target)
+	size, err := queue.fetchFile(context.Background(), server.URL, "", "", target, nil)
 	if err != nil {
 		t.Fatalf("fetchFile: %v", err)
 	}
@@ -77,7 +80,7 @@ func TestFetchFileFallsBackWhenRangeIgnored(t *testing.T) {
 		t.Fatal(err)
 	}
 	queue := newDownloadQueue(nil)
-	if _, err := queue.fetchFile(server.URL, "", target); err != nil {
+	if _, err := queue.fetchFile(context.Background(), server.URL, "", "", target, nil); err != nil {
 		t.Fatalf("fetchFile: %v", err)
 	}
 	content, _ := os.ReadFile(target)
@@ -126,7 +129,7 @@ func TestQueueDownloadsFiles(t *testing.T) {
 	dir := t.TempDir()
 	queue := newDownloadQueue(nil)
 	job := &downloadJob{TaskName: "测试任务", Root: dir, Client: client}
-	queue.transfer(job, downloadItem{RelPath: "剧集/E01.mkv", FID: "fid-1"})
+	queue.transfer(job, context.Background(), downloadItem{RelPath: "剧集/E01.mkv", FID: "fid-1", Size: int64(len(payload))})
 
 	view := job.view()
 	if view.Done != 1 || view.Failed != 0 {
@@ -142,14 +145,14 @@ func TestQueueDownloadsFiles(t *testing.T) {
 
 	// Existing files are skipped unless overwrite is on.
 	job.Overwrite = false
-	queue.transfer(job, downloadItem{RelPath: "剧集/E01.mkv", FID: "fid-1"})
+	queue.transfer(job, context.Background(), downloadItem{RelPath: "剧集/E01.mkv", FID: "fid-1", Size: int64(len(payload))})
 	if skipped := job.view().Skipped; skipped != 1 {
 		t.Fatalf("skipped = %d, want 1", skipped)
 	}
 
 	// Path traversal is rejected.
 	job.Overwrite = true
-	queue.transfer(job, downloadItem{RelPath: "../escape.mkv", FID: "fid-1"})
+	queue.transfer(job, context.Background(), downloadItem{RelPath: "../escape.mkv", FID: "fid-1"})
 	if failed := job.view().Failed; failed != 1 {
 		t.Fatalf("failed = %d, want 1 for traversal path", failed)
 	}
@@ -161,5 +164,123 @@ func TestEnsureFreeSpace(t *testing.T) {
 	}
 	if message := ensureFreeSpace(t.TempDir(), 1000000); message == "" {
 		t.Fatal("huge threshold should fail")
+	}
+}
+
+func TestCollectMissingDownloads(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/1/clouddrive/file/info/path_list":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 0,
+				"data": []map[string]string{{"file_path": "/tv", "fid": "dir-tv"}},
+			})
+		case "/1/clouddrive/file/sort":
+			lists := map[string][]map[string]any{
+				"dir-tv": {
+					{"fid": "f1", "file_name": "S01.mkv"},
+					{"fid": "sub", "file_name": "剧集", "dir": true},
+				},
+				"sub": {
+					{"fid": "f2", "file_name": "S02.mkv"},
+				},
+			}
+			list := lists[r.URL.Query().Get("pdir_fid")]
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code":     0,
+				"metadata": map[string]any{"_total": len(list)},
+				"data":     map[string]any{"list": list},
+			})
+		default:
+			t.Errorf("unexpected upstream path %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	client := quark.New("")
+	client.SetBaseURL(upstream.URL, upstream.URL)
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "S01.mkv"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	server := &Server{}
+	logf := func(string, ...any) {}
+	task := &quark.Task{TaskName: "测试", SavePath: "/tv"}
+
+	items := server.collectMissingDownloads(client, task, root, false, nil, logf)
+	if len(items) != 1 || items[0].RelPath != "剧集/S02.mkv" || items[0].FID != "f2" {
+		t.Fatalf("items = %#v", items)
+	}
+
+	// Files already queued by this run's transfer are not repeated.
+	if got := server.collectMissingDownloads(client, task, root, false, map[string]bool{"f2": true}, logf); len(got) != 0 {
+		t.Fatalf("skip set ignored: %#v", got)
+	}
+
+	// Overwrite re-downloads files that already exist locally.
+	all := server.collectMissingDownloads(client, task, root, true, nil, logf)
+	if len(all) != 2 || all[0].RelPath != "S01.mkv" || all[1].RelPath != "剧集/S02.mkv" {
+		t.Fatalf("overwrite items = %#v", all)
+	}
+}
+
+func TestLocalFileExists(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "sub", "a.mkv"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !localFileExists(root, "sub/a.mkv") {
+		t.Fatal("existing file not detected")
+	}
+	if localFileExists(root, "sub") {
+		t.Fatal("directories must not count as files")
+	}
+	if localFileExists(root, "missing.mkv") {
+		t.Fatal("missing file reported as present")
+	}
+}
+
+func TestDownloadJobTracksProgress(t *testing.T) {
+	job := &downloadJob{Root: t.TempDir()}
+	job.addProgress(120)
+	if view := job.view(); view.Bytes != 120 {
+		t.Fatalf("in-flight bytes = %d", view.Bytes)
+	}
+	job.addDone(500, 120)
+	view := job.view()
+	if view.Bytes != 500 || view.Done != 1 {
+		t.Fatalf("view = %+v", view)
+	}
+	// A failed transfer removes its partial bytes.
+	job.addProgress(80)
+	job.dropProgress(80)
+	if view := job.view(); view.Bytes != 500 {
+		t.Fatalf("bytes after drop = %d", view.Bytes)
+	}
+}
+
+func TestDownloadJobFinishCallback(t *testing.T) {
+	queue := newDownloadQueue(nil)
+	done := make(chan string, 1)
+	job := &downloadJob{
+		TaskName: "测试",
+		Root:     t.TempDir(), // not under /vol, so the job fails fast
+		OnFinish: func(status string) { done <- status },
+	}
+	queue.Enqueue(job)
+
+	select {
+	case status := <-done:
+		if status != "failed" {
+			t.Fatalf("status = %q", status)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnFinish was not called")
 	}
 }

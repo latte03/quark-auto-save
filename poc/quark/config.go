@@ -26,8 +26,9 @@ type Config struct {
 
 // TaskDownload holds the per-task override for the built-in downloader.
 type TaskDownload struct {
-	Enable bool   `json:"enable"`
-	Dir    string `json:"dir,omitempty"`
+	Enable    bool   `json:"enable"`
+	Dir       string `json:"dir,omitempty"`
+	Overwrite bool   `json:"overwrite,omitempty"`
 }
 
 type Task struct {
