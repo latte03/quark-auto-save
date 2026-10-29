@@ -44,18 +44,21 @@ export type Task = {
 export type TaskDownload = {
   enable: boolean;
   dir?: string;
+  overwrite?: boolean;
 };
 
 export type DownloadJob = {
   id: string;
   task_name: string;
   root: string;
-  status: "queued" | "running" | "done" | "failed";
+  status: "queued" | "running" | "paused" | "done" | "failed" | "canceled";
   total: number;
   done: number;
   failed: number;
   skipped: number;
   bytes: number;
+  total_bytes?: number;
+  speed?: number;
   message?: string;
   started_at?: string;
   finished_at?: string;
@@ -118,7 +121,6 @@ export type LocalDownload = {
   dir: string;
   concurrency: number;
   min_free_gb: number;
-  overwrite: boolean;
 };
 
 export type RunLogSettings = {

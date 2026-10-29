@@ -79,6 +79,9 @@ const emptyTask: Task = {
   progress: { saved: 0, expected: 0, days: [0, 0, 0, 0, 0, 0, 0] },
 };
 
+const sectionTitle =
+  "text-[13px] font-semibold uppercase tracking-[0.06em] text-ink";
+
 const pluginFieldLabels: Record<string, string> = {
   try_match: "按任务名匹配媒体库",
   media_id: "媒体库 ID",
@@ -246,6 +249,8 @@ export function TaskSheet({
   const [validating, setValidating] = useState(false);
   const [picker, setPicker] = useState<null | "savepath" | "share">(null);
   const [openPlugin, setOpenPlugin] = useState<string | null>(null);
+  const [showRules, setShowRules] = useState(false);
+  const [showPlugins, setShowPlugins] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const [pickingLocal, setPickingLocal] = useState(false);
   const [localPickerOpen, setLocalPickerOpen] = useState(false);
@@ -268,6 +273,8 @@ export function TaskSheet({
     setSearchMessages([]);
     setPreviewHit(null);
     setShowRaw(false);
+    setShowRules(false);
+    setShowPlugins(false);
     setOpenPlugin(Object.keys(next.addition)[0] ?? null);
     setLinkState(task?.shareurl_ban ? "bad" : next.shareurl ? "ok" : "unknown");
     setBaseline(JSON.stringify(next));
@@ -403,6 +410,19 @@ export function TaskSheet({
   const pluginKeys = Array.from(
     new Set([...Object.keys(pluginDefaults), ...Object.keys(draft.addition)]),
   );
+  const enabledPluginCount = pluginKeys.filter((plugin) =>
+    pluginEnabled(plugin, {
+      ...(pluginDefaults[plugin] ?? {}),
+      ...(draft.addition[plugin] ?? {}),
+    }),
+  ).length;
+
+  const ruleName = draft.magic_id
+    ? (magicRegex.find((rule) => rule.id === draft.magic_id)?.name ?? "自定义规则")
+    : "";
+  const ruleSummary =
+    (ruleName || draft.pattern || "不筛选，保持原名") +
+    (draft.replace ? ` → ${draft.replace}` : "");
 
   const validate = async () => {
     if (!draft.shareurl.trim()) {
@@ -579,7 +599,7 @@ export function TaskSheet({
             </SheetDescription>
           </SheetHeader>
 
-          <SheetBody className="space-y-4">
+          <SheetBody className="space-y-4 [&_[data-slot=field-label]]:text-muted-ink">
             {banned ? (
               <div className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft px-3 py-2.5 text-danger">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -599,7 +619,7 @@ export function TaskSheet({
 
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-ink">
+                <h3 className={sectionTitle}>
                   基本信息
                 </h3>
                 <Badge variant={linkState === "bad" ? "danger" : linkState === "ok" ? "ok" : "neutral"}>
@@ -671,7 +691,7 @@ export function TaskSheet({
               </Field>
               <SwitchField
                 label="下载到 NAS"
-                description="转存完成后，把本次新增文件拉取到本地目录。"
+                description="转存后把云端保存目录里本地缺少的文件拉取到本地目录。"
                 checked={Boolean(draft.local_download?.enable)}
                 onCheckedChange={(checked) =>
                   update("local_download", {
@@ -681,6 +701,7 @@ export function TaskSheet({
                 }
               />
               {draft.local_download?.enable ? (
+                <>
                 <Field>
                   <FieldLabel>下载目录</FieldLabel>
                   <div className="flex items-center gap-1.5">
@@ -719,110 +740,24 @@ export function TaskSheet({
                   </div>
                   <FieldDescription>留空使用设置里的默认目录。</FieldDescription>
                 </Field>
+                <SwitchField
+                  label="覆盖同名文件"
+                  description="本地已存在同名文件时重新下载；关闭时保留已有文件。"
+                  checked={Boolean(draft.local_download?.overwrite)}
+                  onCheckedChange={(checked) =>
+                    update("local_download", {
+                      enable: true,
+                      ...(draft.local_download ?? {}),
+                      overwrite: checked,
+                    })
+                  }
+                />
+                </>
               ) : null}
             </section>
 
             <section className="space-y-3 border-t border-line pt-3.5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-ink">
-                  保存规则
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPicker("share")}
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  正则预览
-                </Button>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-                <Field>
-                  <FieldLabel>匹配表达式</FieldLabel>
-                  <Select
-                    value={
-                      draft.magic_id || (draft.pattern ? "__custom__" : "__all__")
-                    }
-                    items={[
-                      ...magicRegex.map((rule) => ({
-                        value: rule.id,
-                        label: rule.name,
-                      })),
-                      ...(draft.magic_id || !draft.pattern
-                        ? []
-                        : [{ value: "__custom__", label: "自定义正则" }]),
-                      { value: "__all__", label: "自定义 / 留空转存全部" },
-                    ]}
-                    onValueChange={(value) => {
-                      if (value === "__custom__") return;
-                      setDraft((prev) => ({
-                        ...prev,
-                        magic_id: value && value !== "__all__" ? value : "",
-                        pattern: "",
-                      }));
-                    }}
-                  >
-                    <SelectTrigger aria-label="匹配表达式">
-                      <SelectValue placeholder="自定义 / 留空转存全部" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {magicRegex.map((rule) => (
-                        <SelectItem key={rule.id} value={rule.id} className="py-1.5">
-                          <div className="min-w-0">
-                            <div className="truncate font-mono text-[13px] text-ink">
-                              {rule.name}
-                            </div>
-                            <div className="mt-0.5 truncate font-mono text-[12px] text-muted-ink/70">
-                              {rule.pattern || "未填写正则"}
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                      {draft.magic_id || !draft.pattern ? null : (
-                        <SelectItem value="__custom__">
-                          <div className="min-w-0">
-                            <div className="text-[13px] text-ink">自定义正则</div>
-                            <div className="mt-0.5 truncate font-mono text-[12px] text-muted-ink/70">
-                              {draft.pattern}
-                            </div>
-                          </div>
-                        </SelectItem>
-                      )}
-                      <SelectItem value="__all__">自定义 / 留空转存全部</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel>替换表达式</FieldLabel>
-                  <Input
-                    value={draft.replace}
-                    onChange={(event) => update("replace", event.target.value)}
-                    placeholder="留空使用魔法变量"
-                  />
-                </Field>
-              </div>
-              <div className="rounded-md border border-line bg-line-soft/40 px-2.5 py-2">
-                <div className="font-mono text-[12px] uppercase tracking-[0.08em] text-subtle">
-                  PREVIEW
-                </div>
-                <div className="mt-1 flex items-center gap-2 overflow-hidden font-mono text-[12px]">
-                  <span className="truncate text-muted-ink">Black.Mirror.S07E05.mkv</span>
-                  <span className="text-subtle">→</span>
-                  <span className="truncate font-medium text-ink">
-                    {samplePreview || "计算中…"}
-                  </span>
-                </div>
-              </div>
-              <SwitchField
-                label="忽略文件后缀"
-                description="01.mp4 与 01.mkv 视为同一文件，避免重复转存。"
-                checked={Boolean(draft.ignore_extension)}
-                onCheckedChange={(checked) => update("ignore_extension", checked)}
-              />
-            </section>
-
-            <section className="space-y-3 border-t border-line pt-3.5">
-              <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-ink">
+              <h3 className={sectionTitle}>
                 排程
               </h3>
               <Field>
@@ -946,57 +881,197 @@ export function TaskSheet({
               ) : null}
             </section>
 
+            <section className="space-y-3 border-t border-line pt-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  aria-expanded={showRules}
+                  onClick={() => setShowRules((prev) => !prev)}
+                  className="flex min-w-0 items-center gap-1.5 text-left"
+                >
+                  <h3 className={sectionTitle}>
+                    保存规则
+                  </h3>
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 text-subtle transition-transform",
+                      showRules && "rotate-180",
+                    )}
+                  />
+                </button>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {showRules ? null : (
+                    <span className="max-w-[220px] truncate font-mono text-[11px] text-subtle">
+                      {ruleSummary}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPicker("share")}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    正则预览
+                  </Button>
+                </div>
+              </div>
+              {showRules ? (
+                <div className="space-y-3">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+                  <Field>
+                    <FieldLabel>匹配表达式</FieldLabel>
+                    <Select
+                      value={
+                        draft.magic_id || (draft.pattern ? "__custom__" : "__all__")
+                      }
+                      items={[
+                        ...magicRegex.map((rule) => ({
+                          value: rule.id,
+                          label: rule.name,
+                        })),
+                        ...(draft.magic_id || !draft.pattern
+                          ? []
+                          : [{ value: "__custom__", label: "自定义正则" }]),
+                        { value: "__all__", label: "自定义 / 留空转存全部" },
+                      ]}
+                      onValueChange={(value) => {
+                        if (value === "__custom__") return;
+                        setDraft((prev) => ({
+                          ...prev,
+                          magic_id: value && value !== "__all__" ? value : "",
+                          pattern: "",
+                        }));
+                      }}
+                    >
+                      <SelectTrigger aria-label="匹配表达式">
+                        <SelectValue placeholder="自定义 / 留空转存全部" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {magicRegex.map((rule) => (
+                          <SelectItem key={rule.id} value={rule.id} className="py-1.5">
+                            <div className="min-w-0">
+                              <div className="truncate font-mono text-[13px] text-ink">
+                                {rule.name}
+                              </div>
+                              <div className="mt-0.5 truncate font-mono text-[12px] text-muted-ink/70">
+                                {rule.pattern || "未填写正则"}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                        {draft.magic_id || !draft.pattern ? null : (
+                          <SelectItem value="__custom__">
+                            <div className="min-w-0">
+                              <div className="text-[13px] text-ink">自定义正则</div>
+                              <div className="mt-0.5 truncate font-mono text-[12px] text-muted-ink/70">
+                                {draft.pattern}
+                              </div>
+                            </div>
+                          </SelectItem>
+                        )}
+                        <SelectItem value="__all__">自定义 / 留空转存全部</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field>
+                    <FieldLabel>替换表达式</FieldLabel>
+                    <Input
+                      value={draft.replace}
+                      onChange={(event) => update("replace", event.target.value)}
+                      placeholder="留空使用魔法变量"
+                    />
+                  </Field>
+                </div>
+                <div className="rounded-md border border-line bg-line-soft/40 px-2.5 py-2">
+                  <div className="font-mono text-[12px] uppercase tracking-[0.08em] text-subtle">
+                    PREVIEW
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 overflow-hidden font-mono text-[12px]">
+                    <span className="truncate text-muted-ink">Black.Mirror.S07E05.mkv</span>
+                    <span className="text-subtle">→</span>
+                    <span className="truncate font-medium text-ink">
+                      {samplePreview || "计算中…"}
+                    </span>
+                  </div>
+                </div>
+                <SwitchField
+                  label="忽略文件后缀"
+                  description="01.mp4 与 01.mkv 视为同一文件，避免重复转存。"
+                  checked={Boolean(draft.ignore_extension)}
+                  onCheckedChange={(checked) => update("ignore_extension", checked)}
+                />
+                </div>
+              ) : null}
+            </section>
             <section className="space-y-2 border-t border-line pt-3.5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted-ink">
+              <button
+                type="button"
+                aria-expanded={showPlugins}
+                onClick={() => setShowPlugins((prev) => !prev)}
+                className="flex w-full items-center justify-between gap-2 text-left"
+              >
+                <h3 className={sectionTitle}>
                   插件选项
                 </h3>
-              </div>
-              {pluginKeys.map((plugin) => {
-                const values = {
-                  ...(pluginDefaults[plugin] ?? {}),
-                  ...(draft.addition[plugin] ?? {}),
-                };
-                if (Object.keys(values).length === 0) return null;
-                const enabled = pluginEnabled(plugin, values);
-                const isOpen = openPlugin === plugin;
-                return (
-                  <div
-                    key={plugin}
-                    className="overflow-hidden rounded-md border border-line bg-panel"
-                  >
-                    <button
-                      type="button"
-                      aria-expanded={isOpen}
-                      onClick={() => setOpenPlugin(isOpen ? null : plugin)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-line-soft/40"
+                <span className="flex items-center gap-1.5 text-[11px] text-subtle">
+                  {enabledPluginCount}/{pluginKeys.length} 已启用
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 transition-transform",
+                      showPlugins && "rotate-180",
+                    )}
+                  />
+                </span>
+              </button>
+              {showPlugins ? (
+                <div className="space-y-2">
+                {pluginKeys.map((plugin) => {
+                  const values = {
+                    ...(pluginDefaults[plugin] ?? {}),
+                    ...(draft.addition[plugin] ?? {}),
+                  };
+                  if (Object.keys(values).length === 0) return null;
+                  const enabled = pluginEnabled(plugin, values);
+                  const isOpen = openPlugin === plugin;
+                  return (
+                    <div
+                      key={plugin}
+                      className="overflow-hidden rounded-md border border-line bg-panel"
                     >
-                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
-                        {pluginLabels[plugin] ?? plugin}
-                      </span>
-                      <span className="hidden font-mono text-[12px] uppercase tracking-[0.08em] text-subtle sm:inline">
-                        {plugin}
-                      </span>
-                      <Badge variant={enabled ? "ok" : "neutral"} dot>
-                        {enabled ? "已启用" : "未启用"}
-                      </Badge>
-                      <ChevronDown
-                        className={cn(
-                          "h-3.5 w-3.5 shrink-0 text-subtle transition-transform",
-                          isOpen && "rotate-180",
-                        )}
-                      />
-                    </button>
-                    {isOpen ? (
-                      <div className="border-t border-line-soft px-3 py-2">
-                        {pluginFields(values, (key, value) =>
-                          updateAddition(plugin, key, value),
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        onClick={() => setOpenPlugin(isOpen ? null : plugin)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-line-soft/40"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
+                          {pluginLabels[plugin] ?? plugin}
+                        </span>
+                        <span className="hidden font-mono text-[12px] uppercase tracking-[0.08em] text-subtle sm:inline">
+                          {plugin}
+                        </span>
+                        <Badge variant={enabled ? "ok" : "neutral"} dot>
+                          {enabled ? "已启用" : "未启用"}
+                        </Badge>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 shrink-0 text-subtle transition-transform",
+                            isOpen && "rotate-180",
+                          )}
+                        />
+                      </button>
+                      {isOpen ? (
+                        <div className="border-t border-line-soft px-3 py-2">
+                          {pluginFields(values, (key, value) =>
+                            updateAddition(plugin, key, value),
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                </div>
+              ) : null}
             </section>
 
             <section className="border-t border-line pt-3.5">

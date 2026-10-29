@@ -58,7 +58,6 @@ import {
   FieldLabel,
 } from "../components/ui/field";
 import { SwitchField } from "../components/SwitchField";
-import { Switch } from "../components/ui/switch";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import {
@@ -1121,7 +1120,7 @@ export function SettingsPage({
         <PageSection
           id="settings-download"
           title="下载"
-          description="把云端文件直接落盘到 NAS；目录须位于存储空间下，且应用用户可写。"
+          description="任务开启「下载到 NAS」后，云端保存目录里本地没有的文件会拉取到这里；目录须位于存储空间下，且应用用户可写。"
         >
           <div className="space-y-3">
             <div>
@@ -1240,7 +1239,7 @@ export function SettingsPage({
                 </div>
               ) : null}
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="download-concurrency">并发下载数</FieldLabel>
                 <Input
@@ -1266,21 +1265,6 @@ export function SettingsPage({
                   }
                 />
                 <FieldDescription>低于该值时跳过下载</FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="download-overwrite">覆盖同名文件</FieldLabel>
-                <div className="flex h-8 items-center gap-2">
-                  <Switch
-                    id="download-overwrite"
-                    checked={config.local_download.overwrite}
-                    onCheckedChange={(checked) =>
-                      updateLocalDownload("overwrite", checked)
-                    }
-                  />
-                  <span className="text-[12px] text-muted-ink">
-                    关闭时保留已有文件
-                  </span>
-                </div>
               </Field>
             </div>
           </div>

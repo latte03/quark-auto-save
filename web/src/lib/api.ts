@@ -115,7 +115,6 @@ function normalizeConfig(raw: AppConfig): AppConfig {
       dir: "",
       concurrency: 2,
       min_free_gb: 5,
-      overwrite: false,
       ...localDownload,
     },
     run_logs: {
@@ -166,6 +165,27 @@ export function getRunLog(id: string) {
 
 export function getDownloads() {
   return request<{ jobs: import("./types").DownloadJob[] }>("/api/downloads");
+}
+
+export function pauseDownload(id: string) {
+  return post<{ success: boolean }>(
+    `/api/downloads/${encodeURIComponent(id)}/pause`,
+    {},
+  );
+}
+
+export function resumeDownload(id: string) {
+  return post<{ success: boolean }>(
+    `/api/downloads/${encodeURIComponent(id)}/resume`,
+    {},
+  );
+}
+
+export function cancelDownload(id: string) {
+  return post<{ success: boolean }>(
+    `/api/downloads/${encodeURIComponent(id)}/cancel`,
+    {},
+  );
 }
 
 export async function getConfig() {

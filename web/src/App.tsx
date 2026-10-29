@@ -133,6 +133,16 @@ export default function App() {
     applyTasks(payload);
   }, [applyTasks]);
 
+  // One-shot tasks complete on the server when their download finishes, after
+  // the run stream is closed; a slow poll keeps the list in sync.
+  useEffect(() => {
+    if (!session?.authenticated || page !== "tasks") return;
+    const timer = window.setInterval(() => {
+      void refreshTasks().catch(() => undefined);
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [page, refreshTasks, session?.authenticated]);
+
   const closeStream = useCallback(() => {
     streamRef.current?.close();
     streamRef.current = null;

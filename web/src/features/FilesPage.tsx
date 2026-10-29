@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   ChevronRight,
@@ -7,16 +7,22 @@ import {
   Folder,
   FolderPlus,
   Loader2,
+  Pause,
   Pencil,
+  Play,
   RefreshCw,
   Trash2,
+  X,
 } from "lucide-react";
 import {
   browse,
+  cancelDownload,
   createFolder,
   deleteFile,
   getDownloads,
+  pauseDownload,
   renameFile,
+  resumeDownload,
   type BrowseEntry,
 } from "../lib/api";
 import type { DownloadJob } from "../lib/types";
@@ -72,23 +78,47 @@ export function FilesPage({ onNotify }: FilesPageProps) {
   const [busy, setBusy] = useState(false);
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
 
+  const downloadsActive = jobs.some(
+    (job) => job.status === "queued" || job.status === "running",
+  );
+  const downloadsActiveRef = useRef(false);
+  downloadsActiveRef.current = downloadsActive;
+
+  // Poll fast while a job is running so the progress bar and speed move,
+  // and back off once the queue is idle.
   useEffect(() => {
-    let active = true;
+    let alive = true;
+    let timer = 0;
     const tick = async () => {
       try {
         const result = await getDownloads();
-        if (active) setJobs(result.jobs ?? []);
+        if (alive) setJobs(result.jobs ?? []);
       } catch {
-        if (active) setJobs([]);
+        if (alive) setJobs([]);
+      }
+      if (alive) {
+        timer = window.setTimeout(tick, downloadsActiveRef.current ? 1000 : 5000);
       }
     };
     void tick();
-    const timer = window.setInterval(tick, 4000);
     return () => {
-      active = false;
-      window.clearInterval(timer);
+      alive = false;
+      window.clearTimeout(timer);
     };
   }, []);
+
+  const controlDownload = useCallback(
+    async (action: (id: string) => Promise<unknown>, id: string) => {
+      try {
+        await action(id);
+        const result = await getDownloads();
+        setJobs(result.jobs ?? []);
+      } catch (cause) {
+        onNotify(cause instanceof Error ? cause.message : "操作失败", "error");
+      }
+    },
+    [onNotify],
+  );
 
   const load = useCallback(
     async (target: string, until?: (list: BrowseEntry[]) => boolean) => {
@@ -224,15 +254,26 @@ export function FilesPage({ onNotify }: FilesPageProps) {
           <div className="divide-y divide-line-soft">
             {jobs.map((job) => {
               const handled = job.done + job.skipped;
-              const percent = job.total > 0 ? Math.round((handled / job.total) * 100) : 0;
+              const percent =
+                job.total_bytes && job.total_bytes > 0
+                  ? job.status === "done"
+                    ? 100
+                    : Math.min(99, Math.round((job.bytes / job.total_bytes) * 100))
+                  : job.total > 0
+                    ? Math.round((handled / job.total) * 100)
+                    : 0;
               const label =
                 job.status === "queued"
                   ? "排队中"
                   : job.status === "running"
                     ? "下载中"
-                    : job.status === "failed"
-                      ? "失败"
-                      : "已完成";
+                    : job.status === "paused"
+                      ? "已暂停"
+                      : job.status === "canceled"
+                        ? "已取消"
+                        : job.status === "failed"
+                          ? "失败"
+                          : "已完成";
               return (
                 <div key={job.id} className="px-3 py-2.5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -245,15 +286,57 @@ export function FilesPage({ onNotify }: FilesPageProps) {
                           ? "danger"
                           : job.status === "done"
                             ? "ok"
-                            : "info"
+                            : job.status === "paused"
+                              ? "warn"
+                              : job.status === "canceled"
+                                ? "neutral"
+                                : "info"
                       }
                     >
                       {label}
                     </Badge>
                     <span className="ml-auto font-mono text-[12px] tabular-nums text-subtle">
                       {handled}/{job.total} · {formatBytes(job.bytes)}
+                      {job.status === "running" && (job.speed ?? 0) > 0
+                        ? ` · ${formatBytes(job.speed ?? 0)}/s`
+                        : ""}
                       {job.failed > 0 ? ` · 失败 ${job.failed}` : ""}
                     </span>
+                    {job.status === "queued" || job.status === "running" ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`暂停 ${job.task_name}`}
+                        title="暂停"
+                        onClick={() => void controlDownload(pauseDownload, job.id)}
+                      >
+                        <Pause className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : null}
+                    {job.status === "paused" ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`继续 ${job.task_name}`}
+                        title="继续"
+                        onClick={() => void controlDownload(resumeDownload, job.id)}
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : null}
+                    {job.status === "queued" ||
+                    job.status === "running" ||
+                    job.status === "paused" ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`取消 ${job.task_name}`}
+                        title="取消"
+                        onClick={() => void controlDownload(cancelDownload, job.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    ) : null}
                   </div>
                   <div className="mt-1 truncate font-mono text-[11px] text-subtle">
                     {job.root}
