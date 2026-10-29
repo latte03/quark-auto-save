@@ -188,6 +188,10 @@ export function cancelDownload(id: string) {
   );
 }
 
+export function clearDownloads() {
+  return post<{ removed: number }>("/api/downloads/clear", {});
+}
+
 export async function getConfig() {
   return normalizeConfig(await request<AppConfig>("/api/config"));
 }

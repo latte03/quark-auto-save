@@ -265,6 +265,27 @@ func TestDownloadJobTracksProgress(t *testing.T) {
 	}
 }
 
+func TestClearFinishedKeepsActiveJobs(t *testing.T) {
+	queue := &downloadQueue{jobs: map[string]*downloadJob{}}
+	add := func(id, status string) {
+		job := &downloadJob{ID: id, status: status}
+		queue.jobs[id] = job
+		queue.order = append(queue.order, id)
+	}
+	add("done", "done")
+	add("running", "running")
+	add("failed", "failed")
+	add("paused", "paused")
+
+	if removed := queue.ClearFinished(); removed != 2 {
+		t.Fatalf("removed = %d, want 2", removed)
+	}
+	views := queue.Snapshot()
+	if len(views) != 2 || views[0].ID != "paused" || views[1].ID != "running" {
+		t.Fatalf("remaining jobs = %+v", views)
+	}
+}
+
 func TestDownloadJobFinishCallback(t *testing.T) {
 	queue := newDownloadQueue(nil)
 	done := make(chan string, 1)

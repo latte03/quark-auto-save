@@ -128,6 +128,30 @@ func (q *downloadQueue) get(id string) *downloadJob {
 	return q.jobs[id]
 }
 
+// ClearFinished forgets jobs that already ended so the queue stops listing
+// them. Queued, running and paused jobs stay.
+func (q *downloadQueue) ClearFinished() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	kept := q.order[:0]
+	removed := 0
+	for _, id := range q.order {
+		job, ok := q.jobs[id]
+		if !ok {
+			continue
+		}
+		switch job.currentStatus() {
+		case "queued", "running", "paused":
+			kept = append(kept, id)
+		default:
+			delete(q.jobs, id)
+			removed++
+		}
+	}
+	q.order = kept
+	return removed
+}
+
 // Pause interrupts in-flight transfers and stops new ones; partial data stays
 // on disk so Resume continues where it stopped.
 func (q *downloadQueue) Pause(id string) bool {
@@ -935,4 +959,12 @@ func (s *Server) handleResumeDownload(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCancelDownload(w http.ResponseWriter, r *http.Request) {
 	s.downloadControl(w, r, s.downloads.Cancel)
+}
+
+func (s *Server) handleClearDownloads(w http.ResponseWriter, r *http.Request) {
+	removed := s.downloads.ClearFinished()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"data":    map[string]any{"removed": removed},
+	})
 }

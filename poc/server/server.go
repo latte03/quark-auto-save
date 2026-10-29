@@ -137,6 +137,7 @@ func (s *Server) routes() {
 	mux.HandleFunc("GET /api/local/authorized", s.auth(s.handleLocalAuthorized))
 	mux.HandleFunc("GET /api/local/browse", s.auth(s.handleLocalBrowse))
 	mux.HandleFunc("GET /api/downloads", s.auth(s.handleDownloads))
+	mux.HandleFunc("POST /api/downloads/clear", s.auth(s.handleClearDownloads))
 	mux.HandleFunc("POST /api/downloads/{id}/pause", s.auth(s.handlePauseDownload))
 	mux.HandleFunc("POST /api/downloads/{id}/resume", s.auth(s.handleResumeDownload))
 	mux.HandleFunc("POST /api/downloads/{id}/cancel", s.auth(s.handleCancelDownload))
