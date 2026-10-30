@@ -1,3 +1,4 @@
+import { Loader2 } from "lucide-react";
 import type { Task } from "../lib/types";
 import { Button } from "../components/ui/button";
 import {
@@ -12,10 +13,12 @@ import {
 
 export function DeleteTaskDialog({
   target,
+  busy,
   onOpenChange,
   onConfirm,
 }: {
   target: Task | null;
+  busy: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
@@ -23,7 +26,7 @@ export function DeleteTaskDialog({
     <Dialog
       open={Boolean(target)}
       onOpenChange={(open) => {
-        if (!open) onOpenChange(false);
+        if (!open && !busy) onOpenChange(false);
       }}
     >
       <DialogContent className="w-[min(420px,calc(100vw-2rem))]">
@@ -39,10 +42,21 @@ export function DeleteTaskDialog({
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
             取消
           </Button>
-          <Button variant="destructive" size="sm" onClick={onConfirm}>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={busy || !target}
+            onClick={onConfirm}
+          >
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             删除任务
           </Button>
         </DialogFooter>

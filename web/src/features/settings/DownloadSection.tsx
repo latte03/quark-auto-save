@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,7 +21,7 @@ import { formatFree } from "./constants";
 import { useSettings } from "./SettingsContext";
 
 export function DownloadSection() {
-  const { config, updateLocalDownload, onAdoptDefaults } = useSettings();
+  const { config, setConfig, updateLocalDownload, onAdoptDefaults } = useSettings();
   const notify = useToast();
   const [pickingDir, setPickingDir] = useState(false);
   const [checkingDir, setCheckingDir] = useState(false);
@@ -30,43 +30,74 @@ export function DownloadSection() {
   const [authorizedError, setAuthorizedError] = useState("");
   const [loadingAuthorized, setLoadingAuthorized] = useState(false);
   const [dirPickerOpen, setDirPickerOpen] = useState(false);
+  const checkSeq = useRef(0);
 
-  const loadAuthorizedDirs = async () => {
-    setLoadingAuthorized(true);
-    setAuthorizedError("");
-    try {
-      const result = await getAuthorizedDirs();
-      const paths = result.paths ?? [];
-      setAuthorizedDirs(paths);
-      if (paths.length > 0 && !config.local_download.dir.trim()) {
-        updateLocalDownload("dir", paths[0]);
-        void checkDirectory(paths[0]);
-        onAdoptDefaults();
+  // 多次校验可能同时在飞（失焦、点授权目录、选目录），只认最新一次的结果。
+  const checkDirectory = useCallback(
+    async (path: string) => {
+      const requestId = ++checkSeq.current;
+      const target = path.trim();
+      if (!target) {
+        setCheckingDir(false);
+        setDirCheck(null);
+        return;
       }
-    } catch (cause) {
-      setAuthorizedDirs([]);
-      setAuthorizedError(
-        cause instanceof Error ? cause.message : "无法读取飞牛授权目录",
-      );
-    } finally {
-      setLoadingAuthorized(false);
-    }
-  };
+      setCheckingDir(true);
+      try {
+        const next = await validateLocalDir(target);
+        if (requestId === checkSeq.current) setDirCheck(next);
+      } catch (cause) {
+        if (requestId === checkSeq.current) {
+          setDirCheck(null);
+          notify(cause instanceof Error ? cause.message : "目录检查失败", "error");
+        }
+      } finally {
+        if (requestId === checkSeq.current) setCheckingDir(false);
+      }
+    },
+    [notify],
+  );
 
-  const checkDirectory = async (path: string) => {
-    if (!path.trim()) {
-      setDirCheck(null);
-      return;
-    }
-    setCheckingDir(true);
-    try {
-      setDirCheck(await validateLocalDir(path.trim()));
-    } catch (cause) {
-      setDirCheck(null);
-      notify(cause instanceof Error ? cause.message : "目录检查失败", "error");
-    } finally {
-      setCheckingDir(false);
-    }
+  // adoptIfEmpty 只在初次挂载时使用：之后用户手动选的目录不能被授权列表覆盖。
+  const loadAuthorizedDirs = useCallback(
+    async (adoptIfEmpty = false) => {
+      setLoadingAuthorized(true);
+      setAuthorizedError("");
+      try {
+        const result = await getAuthorizedDirs();
+        const paths = result.paths ?? [];
+        setAuthorizedDirs(paths);
+        if (!adoptIfEmpty || paths.length === 0) return;
+        let adopted = false;
+        setConfig((prev) => {
+          if (prev.local_download.dir.trim()) return prev;
+          adopted = true;
+          return {
+            ...prev,
+            local_download: { ...prev.local_download, dir: paths[0] },
+          };
+        });
+        if (adopted) {
+          void checkDirectory(paths[0]);
+          onAdoptDefaults();
+        }
+      } catch (cause) {
+        setAuthorizedDirs([]);
+        setAuthorizedError(
+          cause instanceof Error ? cause.message : "无法读取飞牛授权目录",
+        );
+      } finally {
+        setLoadingAuthorized(false);
+      }
+    },
+    [checkDirectory, onAdoptDefaults, setConfig],
+  );
+
+  const handleDirChange = (value: string) => {
+    updateLocalDownload("dir", value);
+    checkSeq.current += 1;
+    setCheckingDir(false);
+    setDirCheck(null);
   };
 
   const pickDirectory = async () => {
@@ -74,7 +105,7 @@ export function DownloadSection() {
     try {
       const dir = await pickSharedDirectory();
       if (!dir) return;
-      updateLocalDownload("dir", dir);
+      handleDirChange(dir);
       await checkDirectory(dir);
       void loadAuthorizedDirs();
     } catch (cause) {
@@ -88,10 +119,8 @@ export function DownloadSection() {
   };
 
   useEffect(() => {
-    void loadAuthorizedDirs();
-    // Reads the authorization list once when the settings page mounts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void loadAuthorizedDirs(true);
+  }, [loadAuthorizedDirs]);
 
   return (
     <PageSection
@@ -119,7 +148,10 @@ export function DownloadSection() {
             </div>
           ) : null}
           {loadingAuthorized || authorizedDirs.length > 0 ? (
-            <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[12px] text-muted-ink">
+            <div
+              aria-busy={loadingAuthorized}
+              className="mb-2 flex flex-wrap items-center gap-1.5 text-[12px] text-muted-ink"
+            >
               <span>飞牛已授权</span>
               {loadingAuthorized ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -128,8 +160,9 @@ export function DownloadSection() {
                 <button
                   key={path}
                   type="button"
+                  aria-pressed={config.local_download.dir === path}
                   onClick={() => {
-                    updateLocalDownload("dir", path);
+                    handleDirChange(path);
                     void checkDirectory(path);
                   }}
                   className={cn(
@@ -150,9 +183,7 @@ export function DownloadSection() {
               <Input
                 id="download-dir"
                 value={config.local_download.dir}
-                onChange={(event) =>
-                  updateLocalDownload("dir", event.target.value)
-                }
+                onChange={(event) => handleDirChange(event.target.value)}
                 onBlur={() => void checkDirectory(config.local_download.dir)}
                 className="min-w-0 flex-1 font-mono text-[12px]"
                 placeholder="/vol1/1000/Media"
@@ -223,9 +254,17 @@ export function DownloadSection() {
               min={1}
               max={8}
               value={config.local_download.concurrency}
-              onChange={(event) =>
-                updateLocalDownload("concurrency", Number(event.target.value))
-              }
+              onChange={(event) => {
+                const raw = event.target.value.trim();
+                if (raw === "") {
+                  // 并发至少要 1，清空时回到最小值。
+                  updateLocalDownload("concurrency", 1);
+                  return;
+                }
+                const next = Number.parseInt(raw, 10);
+                if (!Number.isFinite(next)) return;
+                updateLocalDownload("concurrency", Math.min(8, Math.max(1, next)));
+              }}
             />
           </Field>
           <Field>
@@ -235,9 +274,17 @@ export function DownloadSection() {
               type="number"
               min={0}
               value={config.local_download.min_free_gb}
-              onChange={(event) =>
-                updateLocalDownload("min_free_gb", Number(event.target.value))
-              }
+              onChange={(event) => {
+                const raw = event.target.value.trim();
+                // 清空即 0：低于该值就跳过下载，0 表示不检查剩余空间。
+                if (raw === "") {
+                  updateLocalDownload("min_free_gb", 0);
+                  return;
+                }
+                const next = Number.parseInt(raw, 10);
+                if (!Number.isFinite(next)) return;
+                updateLocalDownload("min_free_gb", Math.max(0, next));
+              }}
             />
             <FieldDescription>低于该值时跳过下载</FieldDescription>
           </Field>
@@ -249,7 +296,7 @@ export function DownloadSection() {
         initial={config.local_download.dir}
         onOpenChange={setDirPickerOpen}
         onSelect={(path) => {
-          updateLocalDownload("dir", path);
+          handleDirChange(path);
           void checkDirectory(path);
           notify(`下载目录已设为 ${path}`, "ok");
         }}

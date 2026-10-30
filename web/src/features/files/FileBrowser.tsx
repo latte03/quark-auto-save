@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   ChevronRight,
@@ -15,18 +15,26 @@ import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
+import { useToast } from "../../components/ToastProvider";
 import { FileDialogs } from "./FileDialogs";
 import { categoryLabels, joinPath, parentPath } from "./paths";
 import { useFileActions } from "./useFileActions";
 
+const REFRESH_ATTEMPTS = 6;
+const REFRESH_INTERVAL_MS = 250;
+
 export function FileBrowser() {
+  const notify = useToast();
   const [path, setPath] = useState("/");
   const [entries, setEntries] = useState<BrowseEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // 面包屑连点、刷新和改动后的轮询可能同时在飞，只认最新一次请求的结果。
+  const requestSeq = useRef(0);
 
   const load = useCallback(
     async (target: string, until?: (list: BrowseEntry[]) => boolean) => {
+      const requestId = ++requestSeq.current;
       setLoading(true);
       setError("");
       // Mutations poll with `until` and keep the current rows visible; plain
@@ -36,19 +44,35 @@ export function FileBrowser() {
         let result = await browse(target);
         // Quark's directory listing can trail a write by a moment; poll a few
         // times so create/rename/delete show up without a manual refresh.
-        for (let attempt = 0; attempt < 6 && until && !until(result.entries); attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
+        for (
+          let attempt = 0;
+          attempt < REFRESH_ATTEMPTS && until && !until(result.entries);
+          attempt++
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, REFRESH_INTERVAL_MS));
+          if (requestId !== requestSeq.current) return;
           result = await browse(target);
         }
+        if (requestId !== requestSeq.current) return;
         setEntries(result.entries);
+        if (until && !until(result.entries)) {
+          notify("列表还没刷出这次改动，稍后手动刷新看看", "warn");
+        }
       } catch (cause) {
-        setEntries([]);
-        setError(cause instanceof Error ? cause.message : "读取目录失败");
+        if (requestId !== requestSeq.current) return;
+        const message = cause instanceof Error ? cause.message : "读取目录失败";
+        if (until) {
+          // 刷新失败不该把已经显示的文件清空，给个非阻塞提示即可。
+          notify(message, "warn");
+        } else {
+          setEntries([]);
+          setError(message);
+        }
       } finally {
-        setLoading(false);
+        if (requestId === requestSeq.current) setLoading(false);
       }
     },
-    [],
+    [notify],
   );
 
   useEffect(() => {
@@ -87,6 +111,7 @@ export function FileBrowser() {
         <div className="flex min-w-0 flex-wrap items-center gap-0.5 text-[12px]">
           <button
             onClick={() => setPath("/")}
+            aria-current={path === "/" ? "page" : undefined}
             className={cn(
               "rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
               path === "/" ? "font-medium text-ink" : "text-muted-ink hover:text-ink",
@@ -102,6 +127,7 @@ export function FileBrowser() {
                 <ChevronRight className="h-3 w-3 shrink-0 text-subtle" />
                 <button
                   onClick={() => setPath(target)}
+                  aria-current={current ? "page" : undefined}
                   className={cn(
                     "max-w-[220px] truncate rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
                     current

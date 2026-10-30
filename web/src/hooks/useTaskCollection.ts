@@ -20,12 +20,13 @@ export function useTaskCollection(polling: boolean) {
   }, [apply]);
 
   const save = useCallback(async (previous: Task | null, next: Task) => {
+    const index = previous?.index ?? null;
     const payload =
-      previous?.index != null
-        ? await updateTask(previous.index, next)
-        : await createTask(next);
+      index != null ? await updateTask(index, next) : await createTask(next);
     setTasks(payload.tasks);
-    return payload;
+    // 新建的任务由后端追加到末尾，直接取返回列表的索引比按名字回查可靠。
+    const created = payload.tasks.length - 1;
+    return { payload, index: index ?? (created >= 0 ? created : null) };
   }, []);
 
   const remove = useCallback(async (task: Task) => {

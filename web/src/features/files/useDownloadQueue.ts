@@ -9,10 +9,17 @@ import {
 import type { DownloadJob } from "../../lib/types";
 import { useToast } from "../../components/ToastProvider";
 
+const ACTIVE_POLL_MS = 1000;
+const IDLE_POLL_MS = 5000;
+
+function isActive(job: DownloadJob) {
+  return job.status === "queued" || job.status === "running";
+}
+
 export function useDownloadQueue() {
   const notify = useToast();
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
-  const activeRef = useRef(false);
+  const requestSeq = useRef(0);
 
   const activeJobs = jobs.filter(
     (job) =>
@@ -20,10 +27,13 @@ export function useDownloadQueue() {
       job.status === "running" ||
       job.status === "paused",
   );
-  const finishedJobs = jobs.filter((job) => !activeJobs.includes(job));
-  const running = activeJobs.filter(
-    (job) => job.status === "queued" || job.status === "running",
-  ).length;
+  const finishedJobs = jobs.filter(
+    (job) =>
+      job.status !== "queued" &&
+      job.status !== "running" &&
+      job.status !== "paused",
+  );
+  const running = activeJobs.filter(isActive).length;
   const finishedFailed = finishedJobs.filter(
     (job) => job.status === "failed",
   ).length;
@@ -31,53 +41,71 @@ export function useDownloadQueue() {
     (job) => job.status === "canceled",
   ).length;
 
-  activeRef.current = running > 0;
+  // 只接受最新一次请求的结果，避免慢响应把新状态（如暂停/继续）覆盖回去；
+  // 请求失败时保留上一次的队列，不要让界面上的下载凭空消失。
+  const load = useCallback(async () => {
+    const requestId = ++requestSeq.current;
+    try {
+      const result = await getDownloads();
+      const next = result.jobs ?? [];
+      if (requestId === requestSeq.current) setJobs(next);
+      return next;
+    } catch {
+      return null;
+    }
+  }, []);
 
   // Poll fast while a job is running so the progress bar and speed move,
   // and back off once the queue is idle.
   useEffect(() => {
-    let alive = true;
     let timer = 0;
+    let stopped = false;
     const tick = async () => {
-      try {
-        const result = await getDownloads();
-        if (alive) setJobs(result.jobs ?? []);
-      } catch {
-        if (alive) setJobs([]);
-      }
-      if (alive) {
-        timer = window.setTimeout(tick, activeRef.current ? 1000 : 5000);
-      }
+      const next = await load();
+      if (stopped) return;
+      const active = (next ?? []).some(isActive);
+      timer = window.setTimeout(tick, active ? ACTIVE_POLL_MS : IDLE_POLL_MS);
     };
     void tick();
     return () => {
-      alive = false;
+      stopped = true;
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [load]);
 
   const control = useCallback(
     async (action: (id: string) => Promise<unknown>, id: string) => {
       try {
         await action(id);
-        const result = await getDownloads();
-        setJobs(result.jobs ?? []);
+        await load();
       } catch (cause) {
         notify(cause instanceof Error ? cause.message : "操作失败", "error");
       }
     },
-    [notify],
+    [load, notify],
   );
 
   const clearFinished = useCallback(async () => {
     try {
       await clearDownloads();
-      const result = await getDownloads();
-      setJobs(result.jobs ?? []);
+      await load();
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "清空失败", "error");
     }
-  }, [notify]);
+  }, [load, notify]);
+
+  const pause = useCallback(
+    (id: string) => control(pauseDownload, id),
+    [control],
+  );
+  const resume = useCallback(
+    (id: string) => control(resumeDownload, id),
+    [control],
+  );
+  const cancel = useCallback(
+    (id: string) => control(cancelDownload, id),
+    [control],
+  );
 
   return {
     jobs,
@@ -86,9 +114,9 @@ export function useDownloadQueue() {
     running,
     finishedFailed,
     finishedCanceled,
-    pause: (id: string) => control(pauseDownload, id),
-    resume: (id: string) => control(resumeDownload, id),
-    cancel: (id: string) => control(cancelDownload, id),
+    pause,
+    resume,
+    cancel,
     clearFinished,
   };
 }

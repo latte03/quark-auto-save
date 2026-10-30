@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, Loader2, RefreshCw, ScrollText, TriangleAlert } from "lucide-react";
 import { getRunLog, getRuns } from "../lib/api";
 import type { RunView } from "../lib/types";
@@ -42,6 +42,8 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
   const [openRun, setOpenRun] = useState<RunView | null>(null);
   const [lines, setLines] = useState<string[]>([]);
   const [logLoading, setLogLoading] = useState(false);
+  const [logError, setLogError] = useState("");
+  const logSeq = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,22 +62,38 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
     void load();
   }, [load]);
 
+  // 运行结束的那一刻列表还是「运行中」，切回空闲后补一次刷新。
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (wasRunning.current && !running) void load();
+    wasRunning.current = running;
+  }, [load, running]);
+
   const viewRun = async (run: RunView) => {
     if (!run.done) {
       onOpenActive();
       return;
     }
+    const requestId = ++logSeq.current;
     setOpenRun(run);
     setLines([]);
+    setLogError("");
     setLogLoading(true);
     try {
       const result = await getRunLog(run.id);
-      setLines(result.lines ?? []);
+      if (requestId === logSeq.current) setLines(result.lines ?? []);
     } catch (cause) {
-      setLines([cause instanceof Error ? cause.message : "读取日志失败"]);
+      if (requestId === logSeq.current) {
+        setLogError(cause instanceof Error ? cause.message : "读取日志失败");
+      }
     } finally {
-      setLogLoading(false);
+      if (requestId === logSeq.current) setLogLoading(false);
     }
+  };
+
+  const closeLog = () => {
+    logSeq.current += 1;
+    setOpenRun(null);
   };
 
   return (
@@ -167,7 +185,7 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
                       {run.saved_total}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-[12px] tabular-nums text-muted-ink">
-                      {running && !run.done ? "—" : duration(run)}
+                      {duration(run)}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Button
@@ -192,9 +210,11 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
       <RunLogDialog
         open={openRun !== null}
         onOpenChange={(next) => {
-          if (!next) setOpenRun(null);
+          if (!next) closeLog();
         }}
         lines={lines}
+        error={logError}
+        loading={logLoading}
         running={false}
         dry={openRun?.dry}
         allowRerun={false}

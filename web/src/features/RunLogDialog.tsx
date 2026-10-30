@@ -35,6 +35,8 @@ export function RunLogDialog({
   open,
   onOpenChange,
   lines,
+  error,
+  loading,
   running,
   dry,
   allowRerun = true,
@@ -43,18 +45,46 @@ export function RunLogDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lines: string[];
+  error?: string;
+  loading?: boolean;
   running: boolean;
   dry?: boolean;
   allowRerun?: boolean;
   onRunAgain: () => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+  const copiedTimer = useRef<number | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    stickRef.current = true;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !stickRef.current) return;
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [lines, open]);
+
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
+  const copyAll = async () => {
+    try {
+      await navigator.clipboard?.writeText(lines.join("\n"));
+    } catch {
+      return;
+    }
+    setCopied(true);
+    if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+    copiedTimer.current = window.setTimeout(() => setCopied(false), 1600);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -72,6 +102,14 @@ export function RunLogDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="p-0">
+          {error ? (
+            <div
+              role="alert"
+              className="border-b border-danger/30 bg-danger-soft/60 px-4 py-2 text-[12px] text-danger"
+            >
+              {error}
+            </div>
+          ) : null}
           <div className="flex items-center justify-between border-b border-slate-800 bg-[#0b1220] px-4 py-2">
             <div className="flex items-center gap-2 font-mono text-[12px] tracking-[0.06em] text-slate-400">
               <span
@@ -83,10 +121,24 @@ export function RunLogDialog({
               {running ? "streaming" : `${lines.length} lines`}
             </span>
           </div>
-          <div className="scrollbar-dark h-[420px] overflow-y-auto bg-[#0b1220] px-4 py-3 font-mono text-[12px] leading-[1.7]">
+          <div
+            ref={scrollRef}
+            onScroll={() => {
+              const el = scrollRef.current;
+              if (!el) return;
+              stickRef.current =
+                el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+            }}
+            className="scrollbar-dark h-[420px] overflow-y-auto bg-[#0b1220] px-4 py-3 font-mono text-[12px] leading-[1.7]"
+          >
             {lines.length === 0 ? (
               <div className="flex h-full items-center justify-center text-slate-400">
-                {running ? (
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    正在读取日志…
+                  </>
+                ) : running ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     等待输出…
@@ -115,11 +167,7 @@ export function RunLogDialog({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              void navigator.clipboard?.writeText(lines.join("\n"));
-              setCopied(true);
-              window.setTimeout(() => setCopied(false), 1600);
-            }}
+            onClick={() => void copyAll()}
           >
             {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "已复制" : "复制日志"}

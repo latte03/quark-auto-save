@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
   Folder,
@@ -29,6 +29,21 @@ type LocalDirDialogProps = {
   onSelect: (path: string) => void;
 };
 
+function normalizePath(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (trimmed === "/") return "/";
+  return trimmed.replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
+}
+
+function rootOf(path: string, roots: string[]) {
+  return roots.find((item) =>
+    item === "/"
+      ? path.startsWith("/")
+      : path === item || path.startsWith(`${item}/`),
+  );
+}
+
 // Pick a folder inside the administrator-approved roots; new authorisation is
 // only a shortcut here, the main path is browsing what is already granted.
 export function LocalDirDialog({
@@ -42,47 +57,61 @@ export function LocalDirDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [authorizing, setAuthorizing] = useState(false);
+  // 连点面包屑时可能同时有几个浏览请求，只认最新一次的结果。
+  const requestSeq = useRef(0);
+
+  const loadPath = useCallback(async (target?: string) => {
+    const requestId = ++requestSeq.current;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await browseLocalDirs(target);
+      if (requestId === requestSeq.current) setData(result);
+    } catch (cause) {
+      if (requestId === requestSeq.current) {
+        // 失败时不能留着上一个目录，否则底部仍可确认一个没读出来的路径。
+        setData(null);
+        setError(cause instanceof Error ? cause.message : "读取目录失败");
+      }
+    } finally {
+      if (requestId === requestSeq.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
+    const requestId = ++requestSeq.current;
     setData(null);
     setError("");
     setLoading(true);
     const load = async () => {
-      try {
-        const result = await browseLocalDirs(initial?.trim() || undefined);
-        if (!cancelled) setData(result);
-      } catch {
+      const requested = initial?.trim();
+      if (requested) {
         try {
-          const result = await browseLocalDirs();
-          if (!cancelled) setData(result);
+          const result = await browseLocalDirs(requested);
+          if (requestId === requestSeq.current) setData(result);
+          return;
         } catch (cause) {
-          if (!cancelled) {
-            setError(cause instanceof Error ? cause.message : "读取授权目录失败");
-          }
+          if (requestId !== requestSeq.current) return;
+          const message =
+            cause instanceof Error ? cause.message : "读取该目录失败";
+          notify(`${message}，已回到已授权目录`, "warn");
         }
-      } finally {
-        if (!cancelled) setLoading(false);
+      }
+      try {
+        const result = await browseLocalDirs();
+        if (requestId === requestSeq.current) setData(result);
+      } catch (cause) {
+        if (requestId === requestSeq.current) {
+          setData(null);
+          setError(cause instanceof Error ? cause.message : "读取授权目录失败");
+        }
       }
     };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, initial]);
-
-  const loadPath = async (path?: string) => {
-    setLoading(true);
-    setError("");
-    try {
-      setData(await browseLocalDirs(path));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "读取目录失败");
-    } finally {
-      setLoading(false);
-    }
-  };
+    void load().finally(() => {
+      if (requestId === requestSeq.current) setLoading(false);
+    });
+  }, [initial, notify, open]);
 
   const authorize = async () => {
     setAuthorizing(true);
@@ -101,13 +130,13 @@ export function LocalDirDialog({
     }
   };
 
-  const roots = data?.roots ?? [];
-  const path = data?.path ?? "";
-  const root = roots.find(
-    (item) => path === item || path.startsWith(`${item}/`),
-  );
+  const roots = (data?.roots ?? []).map(normalizePath);
+  const path = normalizePath(data?.path ?? "");
+  const root = rootOf(path, roots);
   const segments =
-    root && path !== root ? path.slice(root.length + 1).split("/") : [];
+    root && path !== root
+      ? path.slice(root === "/" ? 1 : root.length + 1).split("/")
+      : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -122,6 +151,7 @@ export function LocalDirDialog({
         <div className="flex min-w-0 flex-wrap items-center gap-0.5 border-b border-line px-4 py-2 text-[12px]">
           <button
             onClick={() => void loadPath()}
+            aria-current={path === "" ? "page" : undefined}
             className={cn(
               "rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
               path === "" ? "font-medium text-ink" : "text-muted-ink hover:text-ink",
@@ -134,6 +164,7 @@ export function LocalDirDialog({
               <ChevronRight className="h-3 w-3 shrink-0 text-subtle" />
               <button
                 onClick={() => void loadPath(root)}
+                aria-current={path === root ? "page" : undefined}
                 className={cn(
                   "max-w-[220px] truncate rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
                   path === root ? "font-medium text-ink" : "text-muted-ink hover:text-ink",
@@ -144,13 +175,15 @@ export function LocalDirDialog({
             </>
           ) : null}
           {segments.map((segment, index) => {
-            const target = `${root}/${segments.slice(0, index + 1).join("/")}`;
+            const suffix = segments.slice(0, index + 1).join("/");
+            const target = root === "/" ? `/${suffix}` : `${root}/${suffix}`;
             const current = index === segments.length - 1;
             return (
               <span key={target} className="flex min-w-0 items-center">
                 <ChevronRight className="h-3 w-3 shrink-0 text-subtle" />
                 <button
                   onClick={() => void loadPath(target)}
+                  aria-current={current ? "page" : undefined}
                   className={cn(
                     "max-w-[160px] truncate rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
                     current ? "font-medium text-ink" : "text-muted-ink hover:text-ink",
@@ -246,7 +279,7 @@ export function LocalDirDialog({
           </Button>
           <Button
             size="sm"
-            disabled={!path || loading}
+            disabled={!path || loading || Boolean(error)}
             onClick={() => {
               onSelect(path);
               onOpenChange(false);

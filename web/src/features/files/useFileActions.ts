@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   createFolder,
   deleteFile,
@@ -20,6 +20,20 @@ export function useFileActions(path: string, load: Reload) {
   const [mkdirOpen, setMkdirOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // busy 状态要等渲染后才生效，回车连按两下会重复提交，用 ref 做同步锁。
+  const busyRef = useRef(false);
+
+  const run = async (task: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await task();
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
 
   const openRename = (entry: BrowseEntry) => {
     setNameInput(entry.name);
@@ -31,7 +45,7 @@ export function useFileActions(path: string, load: Reload) {
     setMkdirOpen(true);
   };
 
-  const submitRename = async () => {
+  const submitRename = useCallback(async () => {
     if (!renameTarget) return;
     const name = nameInput.trim();
     if (!name) {
@@ -42,36 +56,34 @@ export function useFileActions(path: string, load: Reload) {
       setRenameTarget(null);
       return;
     }
-    setBusy(true);
-    try {
-      await renameFile(joinPath(path, renameTarget.name), name);
-      notify(`已重命名为 ${name}`, "ok");
-      setRenameTarget(null);
-      await load(path, (list) => list.some((entry) => entry.name === name));
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "重命名失败", "error");
-    } finally {
-      setBusy(false);
-    }
-  };
+    await run(async () => {
+      try {
+        await renameFile(joinPath(path, renameTarget.name), name);
+        notify(`已重命名为 ${name}`, "ok");
+        setRenameTarget(null);
+        await load(path, (list) => list.some((entry) => entry.name === name));
+      } catch (cause) {
+        notify(cause instanceof Error ? cause.message : "重命名失败", "error");
+      }
+    });
+  }, [load, nameInput, notify, path, renameTarget]);
 
-  const submitDelete = async () => {
+  const submitDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    setBusy(true);
-    try {
-      await deleteFile(joinPath(path, deleteTarget.name));
-      notify(`已移入回收站：${deleteTarget.name}`, "ok");
-      const removedFID = deleteTarget.fid;
-      setDeleteTarget(null);
-      await load(path, (list) => !list.some((entry) => entry.fid === removedFID));
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "删除失败", "error");
-    } finally {
-      setBusy(false);
-    }
-  };
+    await run(async () => {
+      try {
+        await deleteFile(joinPath(path, deleteTarget.name));
+        notify(`已移入回收站：${deleteTarget.name}`, "ok");
+        const removedFID = deleteTarget.fid;
+        setDeleteTarget(null);
+        await load(path, (list) => !list.some((entry) => entry.fid === removedFID));
+      } catch (cause) {
+        notify(cause instanceof Error ? cause.message : "删除失败", "error");
+      }
+    });
+  }, [deleteTarget, load, notify, path]);
 
-  const submitMkdir = async () => {
+  const submitMkdir = useCallback(async () => {
     const name = nameInput.trim();
     if (!name) {
       notify("文件夹名称不能为空", "warn");
@@ -81,18 +93,17 @@ export function useFileActions(path: string, load: Reload) {
       notify("文件夹名称不能包含 /", "warn");
       return;
     }
-    setBusy(true);
-    try {
-      await createFolder(joinPath(path, name));
-      notify(`已新建文件夹 ${name}`, "ok");
-      setMkdirOpen(false);
-      await load(path, (list) => list.some((entry) => entry.name === name));
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "新建文件夹失败", "error");
-    } finally {
-      setBusy(false);
-    }
-  };
+    await run(async () => {
+      try {
+        await createFolder(joinPath(path, name));
+        notify(`已新建文件夹 ${name}`, "ok");
+        setMkdirOpen(false);
+        await load(path, (list) => list.some((entry) => entry.name === name));
+      } catch (cause) {
+        notify(cause instanceof Error ? cause.message : "新建文件夹失败", "error");
+      }
+    });
+  }, [load, nameInput, notify, path]);
 
   return {
     renameTarget,

@@ -37,7 +37,12 @@ export function FileDialogs({
 
   return (
     <>
-      <Dialog open={Boolean(renameTarget)} onOpenChange={(open) => !open && closeRename()}>
+      <Dialog
+        open={Boolean(renameTarget)}
+        onOpenChange={(open) => {
+          if (!open && !busy) closeRename();
+        }}
+      >
         <DialogContent className="w-[min(440px,calc(100vw-2rem))]">
           <DialogHeader>
             <DialogTitle>重命名</DialogTitle>
@@ -51,13 +56,14 @@ export function FileDialogs({
               value={nameInput}
               onChange={(event) => setNameInput(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || busy) return;
                 if (event.key === "Enter") void submitRename();
               }}
               aria-label="新名称"
             />
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" size="sm" onClick={closeRename}>
+            <Button variant="secondary" size="sm" disabled={busy} onClick={closeRename}>
               取消
             </Button>
             <Button size="sm" disabled={busy} onClick={() => void submitRename()}>
@@ -68,7 +74,12 @@ export function FileDialogs({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && closeDelete()}>
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !busy) closeDelete();
+        }}
+      >
         <DialogContent className="w-[min(420px,calc(100vw-2rem))]">
           <DialogHeader>
             <DialogTitle>删除文件</DialogTitle>
@@ -83,13 +94,13 @@ export function FileDialogs({
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" size="sm" onClick={closeDelete}>
+            <Button variant="secondary" size="sm" disabled={busy} onClick={closeDelete}>
               取消
             </Button>
             <Button
               variant="destructive"
               size="sm"
-              disabled={busy}
+              disabled={busy || !deleteTarget}
               onClick={() => void submitDelete()}
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -99,7 +110,12 @@ export function FileDialogs({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={mkdirOpen} onOpenChange={setMkdirOpen}>
+      <Dialog
+        open={mkdirOpen}
+        onOpenChange={(open) => {
+          if (!busy) setMkdirOpen(open);
+        }}
+      >
         <DialogContent className="w-[min(440px,calc(100vw-2rem))]">
           <DialogHeader>
             <DialogTitle>新建文件夹</DialogTitle>
@@ -112,13 +128,19 @@ export function FileDialogs({
               placeholder="文件夹名称"
               onChange={(event) => setNameInput(event.target.value)}
               onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || busy) return;
                 if (event.key === "Enter") void submitMkdir();
               }}
               aria-label="文件夹名称"
             />
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" size="sm" onClick={() => setMkdirOpen(false)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy}
+              onClick={() => setMkdirOpen(false)}
+            >
               取消
             </Button>
             <Button size="sm" disabled={busy} onClick={() => void submitMkdir()}>

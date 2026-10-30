@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, LogIn } from "lucide-react";
 import { BrandMark } from "../components/BrandMark";
 import { Field, FieldLabel } from "../components/ui/field";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { ApiError } from "../lib/api";
 
 type LoginPageProps = {
   version: string;
@@ -16,17 +17,26 @@ export function LoginPage({ version, notice, onLogin }: LoginPageProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // 状态要等下一次渲染才生效，连点两下会绕过 busy 判断。
+  const busyRef = useRef(false);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (busy) return;
+    if (busyRef.current) return;
+    const name = username.trim();
+    if (!name || !password) {
+      setError("请输入用户名和密码");
+      return;
+    }
+    busyRef.current = true;
     setBusy(true);
     setError("");
     try {
-      await onLogin(username.trim(), password);
+      await onLogin(name, password);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "登录失败");
+      setError(cause instanceof ApiError ? cause.message : "登录失败，请稍后重试");
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -78,6 +88,8 @@ export function LoginPage({ version, notice, onLogin }: LoginPageProps) {
                 autoComplete="username"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "login-error" : undefined}
                 placeholder="admin"
               />
             </Field>
@@ -90,12 +102,14 @@ export function LoginPage({ version, notice, onLogin }: LoginPageProps) {
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "login-error" : undefined}
                 placeholder="••••••••"
               />
             </Field>
           </div>
           {error ? (
-            <p role="alert" className="mt-3 text-[12px] text-danger">
+            <p id="login-error" role="alert" className="mt-3 text-[12px] text-danger">
               {error}
             </p>
           ) : null}

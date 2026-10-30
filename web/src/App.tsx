@@ -76,6 +76,7 @@ export default function App() {
     task: null,
   });
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const taskStore = useTaskCollection(Boolean(session?.authenticated) && page === "tasks");
   const runs = useRunController({
@@ -92,17 +93,25 @@ export default function App() {
   const { load: loadConfig, clear: clearConfig } = settings;
 
   const booted = useRef(false);
+  const bootInFlight = useRef(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   const bootstrap = useCallback(async () => {
+    // 重试按钮与登录回调可能同时触达，重叠的引导会互相覆盖会话与任务。
+    if (bootInFlight.current) return;
+    bootInFlight.current = true;
     setBootError("");
     try {
       const info = await getSession();
-      setSession(info);
-      if (!info.authenticated) return;
+      if (!info.authenticated) {
+        setSession(info);
+        return;
+      }
+      // 先取到配置与任务再标记已登录，失败时才回得到带重试的启动页。
       const [cfg, payload] = await Promise.all([getConfig(), getTasks()]);
       loadConfig(cfg);
       applyTasks(payload);
+      setSession(info);
       void loadLatestRun();
       if (payload.running) attachRun(payload.running);
     } catch (cause) {
@@ -112,6 +121,8 @@ export default function App() {
       }
       // Keep the shell in its loading state so the retry screen can come back.
       setBootError(cause instanceof Error ? cause.message : "加载失败");
+    } finally {
+      bootInFlight.current = false;
     }
   }, [
     applyTasks,
@@ -144,6 +155,11 @@ export default function App() {
     clearTasks();
     clearConfig();
     setTaskSheet({ open: false, task: null });
+    setDeleteTarget(null);
+    setLeaveTarget(null);
+    setPage("overview");
+    setTaskFilter("all");
+    setQuery("");
   }, [clearConfig, clearTasks, resetRuns, session?.authenticated]);
 
   useEffect(() => {
@@ -177,43 +193,43 @@ export default function App() {
 
   const handleSave = async (next: Task, runAfter: boolean) => {
     const previous = taskSheet.task;
+    let savedIndex: number | null = null;
     try {
-      const payload = await saveTask(previous, next);
+      const { index } = await saveTask(previous, next);
+      savedIndex = index;
       setTaskSheet({ open: false, task: null });
       notify(runAfter ? "任务已保存，开始运行" : "任务已保存", "ok");
-      if (runAfter) {
-        let index = previous?.index;
-        if (index == null) {
-          for (let cursor = payload.tasks.length - 1; cursor >= 0; cursor -= 1) {
-            if (payload.tasks[cursor].taskname === next.taskname) {
-              index = payload.tasks[cursor].index ?? cursor;
-              break;
-            }
-          }
-        }
-        if (index != null) {
-          await runTasks([index], true);
-        }
-      }
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "保存失败", "error");
+      return;
     }
+    if (!runAfter) return;
+    // 启动失败属于运行问题，不能再报成「保存失败」。
+    if (savedIndex == null) {
+      notify("任务已保存，但没能定位到它，请在列表里手动运行", "warn");
+      return;
+    }
+    await runTasks([savedIndex], true);
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
     try {
       await removeTask(deleteTarget);
       setDeleteTarget(null);
       notify("任务已删除", "ok");
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "删除失败", "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
   const handleSettingsSave = async () => {
     await settings.save();
-    await refreshTasks();
+    // 配置已经落盘；任务列表刷新失败不该把这次保存报成失败。
+    void refreshTasks().catch(() => undefined);
   };
 
   const settingsDirty = page === "settings" && settings.dirty;
@@ -398,6 +414,7 @@ export default function App() {
 
         <DeleteTaskDialog
           target={deleteTarget}
+          busy={deleting}
           onOpenChange={() => setDeleteTarget(null)}
           onConfirm={() => void confirmDelete()}
         />

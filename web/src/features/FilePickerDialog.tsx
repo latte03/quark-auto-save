@@ -36,6 +36,17 @@ type FilePickerDialogProps = {
   onPickPath: (path: string) => void;
 };
 
+function normalizePath(raw: string) {
+  const trimmed = raw.trim();
+  const absolute = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  const collapsed = absolute.replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
+  return collapsed || "/";
+}
+
+function childPath(base: string, name: string) {
+  return base === "/" ? `/${name}` : `${base}/${name}`;
+}
+
 export function FilePickerDialog({
   open,
   mode,
@@ -44,8 +55,19 @@ export function FilePickerDialog({
   onPickPath,
 }: FilePickerDialogProps) {
   const notify = useToast();
-  const [path, setPath] = useState("/");
-  const [manualPath, setManualPath] = useState("");
+  const initialPath = normalizePath(task.savepath || "/");
+  const [path, setPath] = useState(initialPath);
+  const [manualPath, setManualPath] = useState(initialPath);
+  // 每次打开都从任务里的保存路径起步；在渲染期同步，避免先用上一个目录发一次请求。
+  const [openKey, setOpenKey] = useState(open ? `open:${initialPath}` : "closed");
+  const currentKey = open ? `open:${initialPath}` : "closed";
+  if (currentKey !== openKey) {
+    setOpenKey(currentKey);
+    if (open) {
+      setPath(initialPath);
+      setManualPath(initialPath);
+    }
+  }
   const [entries, setEntries] = useState<BrowseEntry[]>([]);
   const [dirLoading, setDirLoading] = useState(false);
   const [dirError, setDirError] = useState("");
@@ -54,12 +76,10 @@ export function FilePickerDialog({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    const initial = task.savepath || "/";
-    setPath(initial.startsWith("/") ? initial : `/${initial}`);
-    setManualPath(initial);
-  }, [open, task.savepath]);
+  const navigate = (next: string) => {
+    setPath(next);
+    setManualPath(next);
+  };
 
   useEffect(() => {
     if (!open || mode !== "savepath") return;
@@ -90,10 +110,13 @@ export function FilePickerDialog({
     if (!open || mode !== "share") return;
     if (!task.shareurl.trim()) {
       setPreview(null);
+      setPreviewLoading(false);
       setPreviewError("任务还没有分享链接");
       return;
     }
     let cancelled = false;
+    // 清掉上一次分享的结果，加载期间表头和计数不再显示旧数据。
+    setPreview(null);
     setPreviewLoading(true);
     setPreviewError("");
     shareDetail({
@@ -158,7 +181,7 @@ export function FilePickerDialog({
           <DialogBody className="space-y-3">
             <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-line bg-line-soft/40 px-2.5 py-2 text-[12px]">
               <button
-                onClick={() => setPath("/")}
+                onClick={() => navigate("/")}
                 className="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-ink hover:bg-panel hover:text-ink"
               >
                 <Home className="h-3.5 w-3.5" />
@@ -170,7 +193,7 @@ export function FilePickerDialog({
                   <span key={nextPath} className="flex items-center gap-1">
                     <ChevronRight className="h-3 w-3 text-subtle" />
                     <button
-                      onClick={() => setPath(nextPath)}
+                      onClick={() => navigate(nextPath)}
                       className="rounded px-1.5 py-0.5 text-muted-ink hover:bg-panel hover:text-ink"
                     >
                       {part}
@@ -190,12 +213,7 @@ export function FilePickerDialog({
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  const next = manualPath.startsWith("/")
-                    ? manualPath
-                    : `/${manualPath}`;
-                  setPath(next);
-                }}
+                onClick={() => navigate(normalizePath(manualPath))}
               >
                 前往
               </Button>
@@ -235,12 +253,7 @@ export function FilePickerDialog({
                       />
                       <button
                         className="min-w-0 flex-1 truncate text-left text-[13px] text-ink hover:underline"
-                        onClick={() => {
-                          const next =
-                            path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
-                          setPath(next);
-                          setManualPath(next);
-                        }}
+                        onClick={() => navigate(childPath(path, entry.name))}
                       >
                         {entry.name}
                       </button>
@@ -250,11 +263,7 @@ export function FilePickerDialog({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() =>
-                          onPickPath(
-                            path === "/" ? `/${entry.name}` : `${path}/${entry.name}`,
-                          )
-                        }
+                        onClick={() => onPickPath(childPath(path, entry.name))}
                       >
                         选择
                       </Button>
