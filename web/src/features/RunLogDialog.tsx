@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
+import { canCopyText } from "../lib/clipboard";
 
 function lineClass(line: string) {
   if (line.includes("❌") || line.includes("失败") || line.includes("失效")) {
@@ -57,9 +58,7 @@ export function RunLogDialog({
   const stickRef = useRef(true);
   const copiedTimer = useRef<number | null>(null);
   const [copied, setCopied] = useState(false);
-  // HTTP 下浏览器不提供剪贴板，禁用按钮比点了没反应更清楚。
-  const canCopy =
-    typeof navigator !== "undefined" && Boolean(navigator.clipboard?.writeText);
+  const canCopy = canCopyText();
 
   useEffect(() => {
     if (!open) return;
@@ -171,8 +170,11 @@ export function RunLogDialog({
           <Button
             variant="ghost"
             size="sm"
-            disabled={!canCopy}
+            // aria-disabled 保留焦点，鼠标悬停或聚焦时还能看到不能复制的原因。
+            aria-disabled={!canCopy || undefined}
+            aria-label={canCopy ? "复制日志" : "当前地址不支持复制"}
             title={canCopy ? undefined : "当前地址不支持复制"}
+            className={canCopy ? undefined : "opacity-50"}
             onClick={() => void copyAll()}
           >
             {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}

@@ -5,6 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
+import { canCopyText } from "@/lib/clipboard"
 import { CheckIcon, CopyIcon } from "lucide-react"
 
 const codeBlockVariants = cva(
@@ -94,10 +95,7 @@ function CodeBlockCopyButton({
 }: React.ComponentProps<typeof Button> & { value: string }) {
   const [copied, setCopied] = React.useState(false)
   const [copySeq, setCopySeq] = React.useState(0)
-  // Insecure origins expose no Clipboard API; disable up front instead of
-  // leaving a button that silently does nothing.
-  const canCopy =
-    typeof navigator !== "undefined" && Boolean(navigator.clipboard?.writeText)
+  const canCopy = canCopyText()
 
   React.useEffect(() => {
     if (!copied) {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronRight, FileArchive, FileVideo, Folder, Loader2 } from "lucide-react";
 import type { SearchResult, Task } from "../lib/types";
 import { formatBytes } from "../lib/mock";
-import { shareDetail, type ShareDetail } from "../lib/api";
+import { shareDetail, type ShareDetail, type ShareDetailFile } from "../lib/api";
 import { cn } from "../lib/utils";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -15,6 +15,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+
+function fileIcon(file: ShareDetailFile) {
+  if (file.is_dir) {
+    return <Folder className="h-3.5 w-3.5 shrink-0 text-brand" />;
+  }
+  if (file.name.endsWith(".zip") || file.name.endsWith(".rar")) {
+    return <FileArchive className="h-3.5 w-3.5 shrink-0 text-warn" />;
+  }
+  return <FileVideo className="h-3.5 w-3.5 shrink-0 text-muted-ink" />;
+}
+
+function fileStatusBadge(file: ShareDetailFile) {
+  if (file.is_dir) return <Badge variant="neutral">目录</Badge>;
+  if (!file.matched) return <Badge variant="neutral">跳过</Badge>;
+  if (file.saved) return <Badge variant="neutral">已存在</Badge>;
+  return <Badge variant="ok">将转存</Badge>;
+}
 
 type SearchPreviewDialogProps = {
   open: boolean;
@@ -168,14 +185,7 @@ export function SearchPreviewDialog({
                   const content = (
                     <>
                       <div className="flex min-w-0 items-center gap-2">
-                        {file.is_dir ? (
-                          <Folder className="h-3.5 w-3.5 shrink-0 text-brand" />
-                        ) : file.name.endsWith(".zip") ||
-                          file.name.endsWith(".rar") ? (
-                          <FileArchive className="h-3.5 w-3.5 shrink-0 text-warn" />
-                        ) : (
-                          <FileVideo className="h-3.5 w-3.5 shrink-0 text-muted-ink" />
-                        )}
+                        {fileIcon(file)}
                         <span
                           className={cn(
                             "truncate text-[12px]",
@@ -191,17 +201,7 @@ export function SearchPreviewDialog({
                       <span className="font-mono text-[12px] text-subtle">
                         {file.is_dir ? "—" : formatBytes(file.size ?? 0)}
                       </span>
-                      <span>
-                        {file.is_dir ? (
-                          <Badge variant="neutral">目录</Badge>
-                        ) : !file.matched ? (
-                          <Badge variant="neutral">跳过</Badge>
-                        ) : file.saved ? (
-                          <Badge variant="neutral">已存在</Badge>
-                        ) : (
-                          <Badge variant="ok">将转存</Badge>
-                        )}
-                      </span>
+                      <span>{fileStatusBadge(file)}</span>
                     </>
                   );
                   // 只有目录能点进去；文件行不是控件，不该被读成按钮。
