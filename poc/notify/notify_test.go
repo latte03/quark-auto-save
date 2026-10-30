@@ -426,16 +426,16 @@ func (r *lineReader) read() (string, bool) {
 	}
 }
 
-func TestPlaintextSMTPOnlyForLocalRelays(t *testing.T) {
-	allowed := []string{"localhost", "127.0.0.1", "192.168.1.9", "10.0.0.5", "nas", "mail.local"}
+func TestPlaintextSMTPOnlyForLoopback(t *testing.T) {
+	allowed := []string{"localhost", "127.0.0.1", "::1"}
 	for _, host := range allowed {
-		if !plaintextAllowed(host) {
-			t.Fatalf("%s should be treated as a local relay", host)
+		if !loopbackHost(host) {
+			t.Fatalf("%s should be treated as loopback", host)
 		}
 	}
-	rejected := []string{"smtp.example.com", "8.8.8.8", "2001:4860:4860::8888"}
+	rejected := []string{"smtp.example.com", "192.168.1.9", "nas", "8.8.8.8", "2001:4860:4860::8888"}
 	for _, host := range rejected {
-		if plaintextAllowed(host) {
+		if loopbackHost(host) {
 			t.Fatalf("%s must not receive credentials in cleartext", host)
 		}
 	}

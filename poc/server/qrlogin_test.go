@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -134,6 +135,20 @@ func TestQuarkQRStalePollKeepsSession(t *testing.T) {
 	}
 	if status := pollQR(t, client, ts.URL, start.Data.ID); status.Status != "waiting" {
 		t.Fatalf("live session was dropped by a stale poll: %+v", status)
+	}
+}
+
+func TestQRFinishOnlyClearsMatchingSession(t *testing.T) {
+	q := newQRLogin(nil, log.New(io.Discard, "", 0))
+	q.session = &qrSession{id: "new", token: "tok", createdAt: time.Now()}
+
+	q.finish("stale")
+	if q.session == nil {
+		t.Fatal("a stale finish wiped the live session")
+	}
+	q.finish("new")
+	if q.session != nil {
+		t.Fatal("finishing the matching session should clear it")
 	}
 }
 

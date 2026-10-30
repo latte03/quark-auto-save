@@ -159,14 +159,18 @@ func (q *qrLogin) ticket(ctx context.Context, id string) (int, string, error) {
 		return 0, "", err
 	}
 	if payload.Status == qrStatusExpired || payload.Status == qrStatusFailed || payload.Status == qrStatusCancelled {
-		q.finish()
+		q.finish(id)
 	}
 	return payload.Status, payload.Data.Members.ServiceTicket, nil
 }
 
-func (q *qrLogin) finish() {
+// finish clears the session only if it still belongs to id, so a slow poll for
+// an old QR cannot wipe a fresh one started in the meantime.
+func (q *qrLogin) finish(id string) {
 	q.mu.Lock()
-	q.session = nil
+	if q.session != nil && q.session.id == id {
+		q.session = nil
+	}
 	q.mu.Unlock()
 }
 
@@ -221,7 +225,8 @@ func (s *Server) handleStartQuarkQR(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleQuarkQRStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	status, ticket, err := s.qr.ticket(ctx, r.PathValue("id"))
+	id := r.PathValue("id")
+	status, ticket, err := s.qr.ticket(ctx, id)
 	if errors.Is(err, errQRSession) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
@@ -245,7 +250,7 @@ func (s *Server) handleQuarkQRStatus(w http.ResponseWriter, r *http.Request) {
 			"data":    map[string]any{"status": "expired"},
 		})
 	case qrStatusOK:
-		s.qr.finish()
+		s.qr.finish(id)
 		cookie, nickname, err := s.qr.redeem(ctx, ticket)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, err.Error())
@@ -276,7 +281,7 @@ func (s *Server) handleQuarkQRStatus(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 	default:
-		s.qr.finish()
+		s.qr.finish(id)
 		message := "扫码已取消"
 		if status == qrStatusFailed {
 			message = "扫码确认失败，请重新扫码"

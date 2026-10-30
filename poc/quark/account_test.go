@@ -150,6 +150,23 @@ func TestSignGrowthErrorSurfacesCode(t *testing.T) {
 	}
 }
 
+func TestSignGrowthEmptyDataKeepsMessage(t *testing.T) {
+	server := accountServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": 200, "code": 0, "message": "今日已签到",
+		})
+	})
+	defer server.Close()
+
+	client := New("kps=k; sign=s; vcode=v")
+	client.SetBaseURL(server.URL, server.URL)
+	_, err := client.SignGrowth()
+	var errAPI *APIError
+	if !errors.As(err, &errAPI) || errAPI.Message != "今日已签到" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestAccountInfoAcceptsStringCode(t *testing.T) {
 	server := accountServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{

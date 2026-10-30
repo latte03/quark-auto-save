@@ -102,6 +102,9 @@ func (c *Client) SignGrowth() (int64, error) {
 		return 0, apiErr("growth sign", env, raw)
 	}
 	if len(env.Data) == 0 || string(env.Data) == "null" {
+		if env.Message != "" {
+			return 0, apiErr("growth sign", env, raw)
+		}
 		return 0, fmt.Errorf("签到结果为空")
 	}
 	var out struct {

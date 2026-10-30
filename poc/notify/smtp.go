@@ -59,14 +59,15 @@ func smtpMail(_ *Sender, ctx context.Context, cfg Config, title, content string)
 	}
 	defer client.Close()
 	if !useSSL {
-		// Credentials must not cross the internet in cleartext; upgrade when the
-		// server advertises STARTTLS and refuse otherwise (LAN relays excepted).
-		if ok, _ := client.Extension("STARTTLS"); ok {
+		// smtp.PlainAuth 只允许在 TLS 或回环地址上发送凭据；能升级就先升级。
+		// Extension 的第二个返回值是参数而非错误，EHLO 失败只会让这里返回 false。
+		startTLS, _ := client.Extension("STARTTLS")
+		if startTLS {
 			if err := client.StartTLS(&tls.Config{ServerName: host}); err != nil {
 				return fmt.Errorf("STARTTLS 失败: %w", err)
 			}
-		} else if !plaintextAllowed(host) {
-			return fmt.Errorf("SMTP 服务器 %s 不支持 STARTTLS，已拒绝明文发送凭据", host)
+		} else if !loopbackHost(host) {
+			return fmt.Errorf("SMTP 服务器 %s 未提供 STARTTLS（或 EHLO 握手失败），已拒绝明文发送凭据", host)
 		}
 	}
 	if err := client.Auth(smtp.PlainAuth("", from, password, host)); err != nil {
@@ -103,15 +104,13 @@ func splitList(raw string) []string {
 	return out
 }
 
-// plaintextAllowed reports whether an SMTP relay without STARTTLS is close
-// enough that sending credentials' worth of risk is acceptable: loopback,
-// LAN addresses, and single-label/.local host names.
-func plaintextAllowed(host string) bool {
-	host = strings.TrimSuffix(strings.ToLower(host), ".")
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+// loopbackHost mirrors the hosts smtp.PlainAuth accepts without TLS.
+func loopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
 	}
-	return host == "localhost" || strings.HasSuffix(host, ".local") || !strings.Contains(host, ".")
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func buildMail(from, to, subject, content string) string {
