@@ -497,6 +497,11 @@ func (q *downloadQueue) run(job *downloadJob) {
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
 		job.attachContext(ctx, cancel)
+		// A resume during the previous pass left the status at "queued"; the
+		// job is executing again, so flip it back for the UI.
+		job.mu.Lock()
+		job.status = "running"
+		job.mu.Unlock()
 		q.execute(job, ctx)
 		cancel()
 
