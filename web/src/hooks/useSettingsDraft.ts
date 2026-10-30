@@ -38,6 +38,7 @@ export function useSettingsDraft() {
       magic_regex: config.magic_regex,
       source: config.source,
       local_download: config.local_download,
+      run_logs: config.run_logs,
     });
     setConfig(saved);
     setSavedConfig(saved);
