@@ -42,8 +42,12 @@ export function useSettingsDraft() {
       run_logs: snapshot.run_logs,
     });
     setSavedConfig(saved);
-    // 保存期间用户可能继续编辑：只有草稿没被改过才整体采用服务端结果。
-    setConfig((prev) => (prev && deepEqual(prev, snapshot) ? saved : prev));
+    // 保存期间用户可能继续编辑：草稿变了就保留草稿，但服务端重算的派生字段仍要跟上。
+    setConfig((prev) =>
+      !prev || deepEqual(prev, snapshot)
+        ? saved
+        : { ...prev, next_runs: saved.next_runs, version: saved.version },
+    );
   }, [config]);
 
   // Values the settings page fills in on its own (download dir, detected

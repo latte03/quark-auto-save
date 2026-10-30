@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { previewRename } from "../../lib/api";
 import { cn } from "../../lib/utils";
@@ -21,6 +21,8 @@ export function MatchSection({ open }: { open: boolean }) {
     useTaskDraftContext();
   const [showRules, setShowRules] = useState(false);
   const [samplePreview, setSamplePreview] = useState("");
+  const selectId = useId();
+  const replaceId = useId();
 
   useEffect(() => {
     if (open) setShowRules(false);
@@ -102,7 +104,7 @@ export function MatchSection({ open }: { open: boolean }) {
         <div className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
             <Field>
-              <FieldLabel htmlFor="task-rule-select">匹配表达式</FieldLabel>
+              <FieldLabel htmlFor={selectId}>匹配表达式</FieldLabel>
               <Select
                 value={draft.magic_id || (draft.pattern ? "__custom__" : "__all__")}
                 items={[
@@ -124,7 +126,7 @@ export function MatchSection({ open }: { open: boolean }) {
                   }));
                 }}
               >
-                <SelectTrigger id="task-rule-select">
+                <SelectTrigger id={selectId}>
                   <SelectValue placeholder="自定义 / 留空转存全部" />
                 </SelectTrigger>
                 <SelectContent>
@@ -155,9 +157,9 @@ export function MatchSection({ open }: { open: boolean }) {
               </Select>
             </Field>
             <Field>
-              <FieldLabel htmlFor="task-rule-replace">替换表达式</FieldLabel>
+              <FieldLabel htmlFor={replaceId}>替换表达式</FieldLabel>
               <Input
-                id="task-rule-replace"
+                id={replaceId}
                 value={draft.replace}
                 onChange={(event) => update("replace", event.target.value)}
                 placeholder="留空使用魔法变量"

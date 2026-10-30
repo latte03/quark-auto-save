@@ -65,35 +65,34 @@ export function TaskTable({
           </tr>
         </thead>
         <tbody>
-          {tasks.map((task, index) => {
+          {tasks.map((task) => {
             const progress =
               task.progress.expected > 0
                 ? Math.min(100, (task.progress.saved / task.progress.expected) * 100)
                 : 0;
             return (
               <tr
-                key={`${task.taskname}-${index}`}
+                key={task.index ?? task.taskname}
                 className={cn(
-                  "group cursor-pointer border-b border-line-soft outline-none transition-colors duration-150 ease-out last:border-b-0 hover:bg-brand-soft/30 focus-visible:bg-brand-soft/40 active:bg-brand-soft/45",
+                  "group cursor-pointer border-b border-line-soft transition-colors duration-150 ease-out last:border-b-0 hover:bg-brand-soft/30 active:bg-brand-soft/45",
                   task.status === "banned" && "bg-danger-soft/30 hover:bg-danger-soft/50",
                 )}
-                tabIndex={0}
                 onClick={() => onOpenTask(task)}
-                onKeyDown={(event) => {
-                  // 行本身可聚焦只是给键盘留一条打开任务的路；空格留给页面滚动。
-                  if (event.target !== event.currentTarget) return;
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    onOpenTask(task);
-                  }
-                }}
               >
                 <td className="min-w-[160px] px-3 py-2.5">
                   <div className="flex min-w-0 flex-col">
                     <div className="flex max-w-[220px] items-center gap-1.5">
-                      <span className="truncate text-[14px] font-medium text-ink">
+                      <button
+                        type="button"
+                        aria-label={`打开任务 ${task.taskname}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenTask(task);
+                        }}
+                        className="min-w-0 truncate rounded text-left text-[14px] font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                      >
                         {task.taskname}
-                      </span>
+                      </button>
                       {task.mode === "once" ? (
                         <span className="shrink-0 rounded border border-line px-1 text-[11px] leading-4 text-subtle">
                           单次
@@ -125,7 +124,11 @@ export function TaskTable({
                           aria-label={`${task.taskname} 转存进度`}
                           aria-valuemin={0}
                           aria-valuemax={task.progress.expected}
-                          aria-valuenow={task.progress.saved}
+                          aria-valuenow={Math.min(
+                            task.progress.saved,
+                            task.progress.expected,
+                          )}
+                          aria-valuetext={`${Math.round(progress)}%`}
                           className="h-1 w-12 overflow-hidden rounded-full bg-line"
                         >
                           <div

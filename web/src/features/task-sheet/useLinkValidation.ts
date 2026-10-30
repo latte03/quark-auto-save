@@ -20,11 +20,13 @@ export function useLinkValidation(open: boolean, task: Task | null) {
   }, [open, task]);
 
   const validate = async (shareurl: string) => {
+    // 先作废在飞请求：清空链接后再点验证，旧结果不该再写回状态。
+    const current = (seq.current += 1);
     if (!shareurl.trim()) {
+      setValidating(false);
       notify("请先填写分享链接", "warn");
       return;
     }
-    const current = (seq.current += 1);
     setValidating(true);
     try {
       const result = await validateShare(shareurl);
@@ -52,8 +54,17 @@ export function useLinkValidation(open: boolean, task: Task | null) {
     state,
     validating,
     validate,
-    reset: () => setState("unknown"),
-    markOk: () => setState("ok"),
+    // 手动改写状态同样要作废在飞校验，否则旧结果会把新状态覆盖掉。
+    reset: () => {
+      seq.current += 1;
+      setValidating(false);
+      setState("unknown");
+    },
+    markOk: () => {
+      seq.current += 1;
+      setValidating(false);
+      setState("ok");
+    },
   };
 }
 

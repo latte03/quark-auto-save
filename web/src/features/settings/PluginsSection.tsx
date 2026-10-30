@@ -1,91 +1,18 @@
-import { useEffect, useId, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, Loader2, Plug, Radar } from "lucide-react";
 import { pluginDescriptions, pluginLabels } from "../../lib/mock";
 import type { PluginConfig } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Field, FieldLabel } from "../../components/ui/field";
-import { Input } from "../../components/ui/input";
 import { SwitchField } from "../../components/SwitchField";
+import { PluginNumberField, PluginTextField } from "../../components/PluginField";
 import { PageSection } from "../../components/PageSection";
 import { isSecret, pluginFieldLabels } from "./constants";
 import { useSettings } from "./SettingsContext";
 
 function fieldLabel(key: string) {
   return pluginFieldLabels[key] ?? key;
-}
-
-function PluginTextField({
-  label,
-  secret,
-  placeholder,
-  value,
-  onChange,
-}: {
-  label: string;
-  secret: boolean;
-  placeholder: string;
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  const id = useId();
-  return (
-    <Field className="py-1.5">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Input
-        id={id}
-        type={secret ? "password" : "text"}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </Field>
-  );
-}
-
-function PluginNumberField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (next: number) => void;
-}) {
-  const id = useId();
-  // 数字输入保留本地草稿：直接 Number("") 会立刻写成 0，小数也输不进去。
-  const [text, setText] = useState(String(value));
-
-  useEffect(() => {
-    setText(String(value));
-  }, [value]);
-
-  const commit = () => {
-    const parsed = Number(text.trim());
-    if (text.trim() === "" || !Number.isFinite(parsed)) {
-      setText(String(value));
-      return;
-    }
-    setText(String(parsed));
-    onChange(parsed);
-  };
-
-  return (
-    <Field className="py-1.5">
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Input
-        id={id}
-        inputMode="numeric"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-        }}
-      />
-    </Field>
-  );
 }
 
 function PluginFields({

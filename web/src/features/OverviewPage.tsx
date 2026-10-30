@@ -244,9 +244,9 @@ export function OverviewPage({
               </div>
             ) : (
               <div className="divide-y divide-line-soft">
-                {banned.map((task, index) => (
+                {banned.map((task) => (
                   <div
-                    key={`${task.taskname}-${index}`}
+                    key={task.index ?? task.taskname}
                     className="flex items-center gap-2 px-4 py-2.5"
                   >
                     <Wrench className="h-3.5 w-3.5 shrink-0 text-danger" />
@@ -289,9 +289,9 @@ export function OverviewPage({
                   没有等待运行的任务。
                 </div>
               ) : (
-                upcoming.map((task, index) => (
+                upcoming.map((task) => (
                   <button
-                    key={`${task.taskname}-${index}`}
+                    key={task.index ?? task.taskname}
                     type="button"
                     onClick={() => onOpenTask(task)}
                     className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-line-soft/40"
