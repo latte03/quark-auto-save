@@ -69,6 +69,9 @@ func resolveFID(client *quark.Client, path, fid string) (string, error) {
 // final name ("/a/b/c" -> "/a/b", "c"; "/c" -> "/", "c").
 func splitCloudPath(path string) (string, string) {
 	index := strings.LastIndex(path, "/")
+	if index < 0 {
+		return "/", path
+	}
 	parent := path[:index]
 	if parent == "" {
 		parent = "/"

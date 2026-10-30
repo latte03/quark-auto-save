@@ -305,3 +305,15 @@ func TestDownloadJobFinishCallback(t *testing.T) {
 		t.Fatal("OnFinish was not called")
 	}
 }
+
+func TestSplitCloudPath(t *testing.T) {
+	if parent, name := splitCloudPath("foo"); parent != "/" || name != "foo" {
+		t.Fatalf("bare name = %q, %q", parent, name)
+	}
+	if parent, name := splitCloudPath("/tv/Show"); parent != "/tv" || name != "Show" {
+		t.Fatalf("nested = %q, %q", parent, name)
+	}
+	if parent, name := splitCloudPath("/tv"); parent != "/" || name != "tv" {
+		t.Fatalf("top level = %q, %q", parent, name)
+	}
+}

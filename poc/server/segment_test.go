@@ -264,3 +264,122 @@ func TestSeedSegmentsFromExistingPart(t *testing.T) {
 		t.Fatalf("zero seed = %+v", segments)
 	}
 }
+
+func TestExecuteRequeuesPausedItem(t *testing.T) {
+	payload := make([]byte, 2<<20)
+	for index := range payload {
+		payload[index] = byte(index % 251)
+	}
+	upstream := rangeServer(t, payload, 20*time.Millisecond)
+	client := downloadClient(t, upstream.URL)
+	root := t.TempDir()
+
+	queue := newDownloadQueue(nil)
+	job := &downloadJob{Root: root, Overwrite: true, Client: client, Concurrency: 1}
+	item := downloadItem{RelPath: "keep.bin", FID: "f1", Size: int64(len(payload))}
+	job.pendingItems = []downloadItem{item}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(120 * time.Millisecond)
+		job.pause()
+		cancel()
+	}()
+	queue.execute(job, ctx)
+
+	job.mu.Lock()
+	pending := append([]downloadItem(nil), job.pendingItems...)
+	job.mu.Unlock()
+	if len(pending) != 1 || pending[0].RelPath != item.RelPath {
+		t.Fatalf("paused execute left %+v, want the interrupted item back", pending)
+	}
+
+	// Resume continues the same item from its .part file.
+	job.paused.Store(false)
+	if got := queue.transfer(job, context.Background(), pending[0]); got != transferDone {
+		t.Fatalf("resumed transfer = %v", got)
+	}
+	content, err := os.ReadFile(filepath.Join(root, "keep.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(content, payload) {
+		t.Fatal("resumed content mismatch")
+	}
+}
+
+func TestExecuteDropsCanceledItem(t *testing.T) {
+	payload := make([]byte, 2<<20)
+	upstream := rangeServer(t, payload, 20*time.Millisecond)
+	client := downloadClient(t, upstream.URL)
+
+	queue := newDownloadQueue(nil)
+	job := &downloadJob{Root: t.TempDir(), Overwrite: true, Client: client, Concurrency: 1}
+	job.pendingItems = []downloadItem{{RelPath: "drop.bin", FID: "f1", Size: int64(len(payload))}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(120 * time.Millisecond)
+		job.canceled.Store(true)
+		cancel()
+	}()
+	queue.execute(job, ctx)
+
+	job.mu.Lock()
+	pending := len(job.pendingItems)
+	job.mu.Unlock()
+	if pending != 0 {
+		t.Fatalf("canceled execute kept %d pending items, want 0", pending)
+	}
+}
+
+func TestSettleResumesOrStops(t *testing.T) {
+	// A pause lifted while the pass wound down must continue, not finish.
+	resumed := &downloadJob{processing: true, pendingItems: []downloadItem{{RelPath: "x"}}}
+	if got := resumed.settle(); got != "resume" {
+		t.Fatalf("resumed settle = %q", got)
+	}
+	if !resumed.processing {
+		t.Fatal("a resumed job must stay owned by the worker")
+	}
+
+	// A pause still in effect parks the job and releases worker ownership.
+	paused := &downloadJob{processing: true, pendingItems: []downloadItem{{RelPath: "x"}}}
+	paused.pause()
+	if got := paused.settle(); got != "paused" {
+		t.Fatalf("paused settle = %q", got)
+	}
+	if paused.processing {
+		t.Fatal("a paused job must release worker ownership")
+	}
+	if !paused.finished.IsZero() {
+		t.Fatal("a paused job must not record a finish time")
+	}
+
+	// Nothing pending means the pass completed.
+	done := &downloadJob{processing: true}
+	if got := done.settle(); got != "done" {
+		t.Fatalf("done settle = %q", got)
+	}
+	if done.finished.IsZero() {
+		t.Fatal("a finished job must record its finish time")
+	}
+}
+
+func TestResumeDuringRunDoesNotEnqueueTwice(t *testing.T) {
+	queue := newDownloadQueue(nil)
+	job := &downloadJob{status: "running", processing: true}
+	job.paused.Store(true)
+	queue.jobs["dl-running"] = job
+	queue.order = append(queue.order, "dl-running")
+
+	if !queue.Resume("dl-running") {
+		t.Fatal("resume was rejected")
+	}
+	if job.isPaused() {
+		t.Fatal("resume did not clear the paused flag")
+	}
+	if len(queue.queue) != 0 {
+		t.Fatal("a running job must not be queued a second time")
+	}
+}

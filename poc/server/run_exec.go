@@ -212,16 +212,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 		}
 		var onDownloadDone func(string)
 		if write && task.IsOnce() && !task.OnceFinished() {
-			onDownloadDone = func(status string) {
-				// A canceled download leaves the task pending so it can be
-				// retried; a failed one still completes (the transfer worked).
-				if status == "canceled" {
-					return
-				}
-				if err := s.store.MarkOnceDone(task.TaskName); err != nil {
-					s.logger.Printf("标记单次任务完成失败: %v", err)
-				}
-			}
+			onDownloadDone = s.onceDoneCallback(task)
 		}
 		if err := task.MergePluginDefaults(pluginList); err != nil {
 			logf("✗ 合并插件默认配置失败: %v", err)
@@ -284,6 +275,20 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 		}
 	}
 	return nil
+}
+
+// onceDoneCallback returns the download completion hook for a one-shot task.
+// Only a finished transfer completes it; canceled, failed and paused jobs stay
+// runnable so the local copy is retried.
+func (s *Server) onceDoneCallback(task *quark.Task) func(string) {
+	return func(status string) {
+		if status != "done" {
+			return
+		}
+		if err := s.store.MarkOnceDone(task.TaskName); err != nil {
+			s.logger.Printf("标记单次任务完成失败: %v", err)
+		}
+	}
 }
 
 // sendNotifications pushes the aggregated run summary; failures stay in the

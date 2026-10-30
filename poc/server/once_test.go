@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -275,5 +276,30 @@ func TestMarkOnceDoneByName(t *testing.T) {
 	tasks := store.Tasks()
 	if tasks[0].OnceDoneAt == "" {
 		t.Fatal("one-shot task was not marked done")
+	}
+}
+
+func TestOnceDownloadDoneRequiresSuccess(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	config := `{"tasklist":[{"taskname":"once","mode":"once"}]}`
+	if err := os.WriteFile(path, []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, _, err := OpenStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{store: store, logger: log.New(io.Discard, "", 0)}
+	done := server.onceDoneCallback(store.Tasks()[0])
+
+	for _, status := range []string{"failed", "canceled", "paused"} {
+		done(status)
+		if store.Tasks()[0].OnceDoneAt != "" {
+			t.Fatalf("%s must keep the one-shot task runnable", status)
+		}
+	}
+	done("done")
+	if store.Tasks()[0].OnceDoneAt == "" {
+		t.Fatal("a finished download should complete the one-shot task")
 	}
 }

@@ -56,6 +56,10 @@ type downloadJob struct {
 	finishedNotified atomic.Bool
 	inflight         atomic.Int64
 
+	// processing is guarded by mu; it is true while the queue worker owns the
+	// job, so Resume can tell "still winding down" from "queued for a new run".
+	processing bool
+
 	ctx          context.Context
 	cancel       context.CancelFunc
 	pendingItems []downloadItem
@@ -166,7 +170,12 @@ func (q *downloadQueue) Resume(id string) bool {
 	if job == nil || !job.isPaused() {
 		return false
 	}
-	job.resume()
+	// The worker may still be winding down after the pause; it observes the
+	// cleared flag itself (see settle) and continues the same run, so only
+	// enqueue when no worker owns the job.
+	if job.clearPause() {
+		return true
+	}
 	if job.inQueue.CompareAndSwap(false, true) {
 		q.queue <- job
 	}
@@ -334,12 +343,42 @@ func (j *downloadJob) pause() {
 	j.cancelRun()
 }
 
-func (j *downloadJob) resume() {
-	j.paused.Store(false)
+// clearPause lifts the paused flag and reports whether the queue worker still
+// owns the job; when it does, the worker continues instead of a second run
+// being queued.
+func (j *downloadJob) clearPause() bool {
 	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.paused.Store(false)
 	j.status = "queued"
 	j.finished = time.Time{}
-	j.mu.Unlock()
+	return j.processing
+}
+
+// settle records how one execute pass ended. It reports "resume" when a pause
+// was lifted before the pass wound down, so the same worker keeps going.
+func (j *downloadJob) settle() string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	status := "done"
+	switch {
+	case j.canceled.Load():
+		status = "canceled"
+	case j.paused.Load():
+		status = "paused"
+	case j.aborted.Load():
+		status = "failed"
+	case len(j.pendingItems) > 0:
+		status = "resume"
+	}
+	if status != "resume" {
+		j.status = status
+		if status != "paused" {
+			j.finished = time.Now()
+		}
+		j.processing = false
+	}
+	return status
 }
 
 func (j *downloadJob) attachContext(ctx context.Context, cancel context.CancelFunc) {
@@ -380,6 +419,7 @@ func (j *downloadJob) markFinished(status string) {
 	if status != "paused" && status != "queued" && status != "running" {
 		j.finished = time.Now()
 	}
+	j.processing = false
 	j.mu.Unlock()
 }
 
@@ -423,16 +463,18 @@ func (j *downloadJob) view() downloadJobView {
 }
 
 func (q *downloadQueue) run(job *downloadJob) {
+	job.mu.Lock()
+	job.processing = true
+	if job.started.IsZero() {
+		job.started = time.Now()
+	}
+	job.mu.Unlock()
+
 	if job.isCanceled() {
 		job.markFinished("canceled")
 		job.notifyFinish("canceled")
 		return
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	job.attachContext(ctx, cancel)
-	defer cancel()
-
 	// A job paused while still queued must not start when the worker reaches it.
 	if job.isPaused() {
 		job.markFinished("paused")
@@ -440,58 +482,55 @@ func (q *downloadQueue) run(job *downloadJob) {
 	}
 
 	job.mu.Lock()
-	if job.started.IsZero() {
-		job.started = time.Now()
-	}
 	job.status = "running"
 	job.mu.Unlock()
 
-	started := func() bool {
-		if message := validateLocalRoot(job.Root); message != "" {
-			job.fail(message)
-			q.logf("✗ 下载 %s：%s", job.TaskName, message)
-			return false
-		}
-		if check := checkLocalDir(job.Root); !check.OK {
-			job.fail(check.Message)
-			q.logf("✗ 下载 %s：%s", job.TaskName, check.Message)
-			return false
-		}
-		if message := ensureFreeSpace(job.Root, job.MinFreeGB); message != "" {
-			job.fail(message)
-			q.logf("✗ 下载 %s：%s", job.TaskName, message)
-			return false
-		}
-		return true
-	}
-	if !started() {
+	if message := q.prepare(job); message != "" {
+		job.fail(message)
+		q.logf("✗ 下载 %s：%s", job.TaskName, message)
 		job.markFinished("failed")
 		job.notifyFinish("failed")
 		return
 	}
 
 	q.logf("⬇ 开始下载 %s：%d 个文件 → %s", job.TaskName, len(job.Items), job.Root)
-	q.execute(job, ctx)
-	cancel()
+	for {
+		ctx, cancel := context.WithCancel(context.Background())
+		job.attachContext(ctx, cancel)
+		q.execute(job, ctx)
+		cancel()
 
-	status := "done"
-	switch {
-	case job.isCanceled():
-		status = "canceled"
-	case job.isPaused():
-		status = "paused"
-	case job.aborted.Load():
-		status = "failed"
+		switch outcome := job.settle(); outcome {
+		case "resume":
+			continue
+		case "paused":
+			q.logf("⏸ 已暂停 %s（进度已保存，可继续）", job.TaskName)
+			return
+		case "done":
+			view := job.view()
+			q.logf("⬇ 下载结束 %s：完成 %d，跳过 %d，失败 %d，%s",
+				job.TaskName, view.Done, view.Skipped, view.Failed, formatBytes(view.Bytes))
+			job.notifyFinish("done")
+			return
+		default:
+			job.notifyFinish(outcome)
+			return
+		}
 	}
-	job.markFinished(status)
-	if status == "paused" {
-		q.logf("⏸ 已暂停 %s（进度已保存，可继续）", job.TaskName)
-		return
+}
+
+// prepare validates the job's target before any transfer starts.
+func (q *downloadQueue) prepare(job *downloadJob) string {
+	if message := validateLocalRoot(job.Root); message != "" {
+		return message
 	}
-	view := job.view()
-	q.logf("⬇ 下载结束 %s：完成 %d，跳过 %d，失败 %d，%s",
-		job.TaskName, view.Done, view.Skipped, view.Failed, formatBytes(view.Bytes))
-	job.notifyFinish(status)
+	if check := checkLocalDir(job.Root); !check.OK {
+		return check.Message
+	}
+	if message := ensureFreeSpace(job.Root, job.MinFreeGB); message != "" {
+		return message
+	}
+	return ""
 }
 
 // execute drains the pending queue. Items interrupted by a pause are put back
@@ -535,7 +574,9 @@ func (q *downloadQueue) execute(job *downloadJob, ctx context.Context) {
 			defer job.inflight.Add(-1)
 			defer func() { <-sem }()
 			if result := q.transfer(job, ctx, entry); result == transferInterrupted &&
-				!job.isCanceled() && !job.isPaused() && !job.aborted.Load() {
+				!job.isCanceled() && !job.aborted.Load() {
+				// Paused transfers go back to the queue too: Resume continues
+				// them from the .part file instead of dropping the file.
 				job.requeue(entry)
 			}
 		}(item)

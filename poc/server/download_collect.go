@@ -28,6 +28,10 @@ func collectDownloadItems(tree *quark.Tree, task *quark.Task) []downloadItem {
 	return items
 }
 
+// missingWalkBudget caps the cloud listing per run so a large save tree cannot
+// serialize an unbounded number of Quark calls on the run's critical path.
+const missingWalkBudget = 4000
+
 // collectMissingDownloads walks the task's cloud save path and keeps the
 // files without a local copy, so a run also repairs gaps from earlier runs.
 // Entries in skip (this run's transfers) are ignored: they are already
@@ -59,11 +63,18 @@ func (s *Server) collectMissingDownloads(client *quark.Client, task *quark.Task,
 
 	var items []downloadItem
 	visited := map[string]bool{}
+	walked := 0
+	truncated := false
 	var walk func(fid, prefix string, depth int)
 	walk = func(fid, prefix string, depth int) {
-		if fid == "" || depth > 16 || visited[fid] {
+		if fid == "" || depth > 16 || visited[fid] || truncated {
 			return
 		}
+		if walked >= missingWalkBudget {
+			truncated = true
+			return
+		}
+		walked++
 		visited[fid] = true
 		entries, err := client.LsDir(fid)
 		if err != nil {
@@ -79,6 +90,11 @@ func (s *Server) collectMissingDownloads(client *quark.Client, task *quark.Task,
 				walk(entry.FID, rel, depth+1)
 				continue
 			}
+			walked++
+			if walked > missingWalkBudget {
+				truncated = true
+				return
+			}
 			if entry.FID == "" || skip[entry.FID] {
 				continue
 			}
@@ -89,6 +105,9 @@ func (s *Server) collectMissingDownloads(client *quark.Client, task *quark.Task,
 		}
 	}
 	walk(rootFID, "", 0)
+	if truncated {
+		logf("⚠ 云端保存目录较大，本次只检查了前 %d 个条目：%s", missingWalkBudget, savepath)
+	}
 	return items
 }
 
