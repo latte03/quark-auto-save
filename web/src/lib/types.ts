@@ -37,6 +37,8 @@ export type Task = {
   local_download?: TaskDownload;
   latest: string;
   next_run: string;
+  /** Absolute instant behind `next_run`; absent for one-off or unscheduled tasks. */
+  next_run_at?: string;
   status: TaskStatus;
   progress: TaskProgress;
 };

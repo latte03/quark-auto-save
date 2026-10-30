@@ -139,7 +139,7 @@ func readTaskArg(arg string) (*quark.Task, error) {
 	if err := json.Unmarshal(data, &task); err != nil {
 		return nil, fmt.Errorf("任务格式错误: %w", err)
 	}
-	task.RemoveFields("index", "status", "latest", "next_run", "progress")
+	task.RemoveFields("index", "status", "latest", "next_run", "next_run_at", "progress")
 	task.SavePath = quark.NormalizePath(task.SavePath)
 	if strings.TrimSpace(task.TaskName) == "" || task.ShareURL == "" || task.SavePath == "" || task.SavePath == "/" {
 		return nil, errors.New("临时任务需要 taskname、shareurl、savepath")

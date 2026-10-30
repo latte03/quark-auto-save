@@ -80,10 +80,8 @@ function SidebarProvider({
         setOpenProp(openState)
       } else {
         _setOpen(openState)
-      }
-
-      // This sets the cookie to keep the sidebar state.
-      if (!setOpenProp) {
+        // Only the uncontrolled variant owns the persisted state, so a
+        // controlled parent is never surprised by a stale cookie.
         document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; SameSite=Lax`
       }
     },
@@ -104,6 +102,7 @@ function SidebarProvider({
         event.altKey ||
         event.shiftKey ||
         event.isComposing ||
+        event.repeat ||
         event.defaultPrevented
       ) {
         return
@@ -642,13 +641,8 @@ function SidebarMenuSkeleton({
         />
       )}
       <Skeleton
-        className="h-4 max-w-(--skeleton-width) flex-1"
+        className="h-4 max-w-[70%] flex-1"
         data-sidebar="menu-skeleton-text"
-        style={
-          {
-            "--skeleton-width": "70%",
-          } as React.CSSProperties
-        }
       />
     </div>
   )

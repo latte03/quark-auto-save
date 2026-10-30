@@ -1,4 +1,5 @@
-import { Button } from "./ui/button";
+import type { VariantProps } from "class-variance-authority";
+import { Button, buttonVariants } from "./ui/button";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +16,8 @@ type ConfirmDialogProps = {
   description?: string;
   confirmLabel: string;
   cancelLabel?: string;
-  confirmVariant?: "destructive" | "default";
-  onConfirm: () => void;
+  confirmVariant?: VariantProps<typeof buttonVariants>["variant"];
+  onConfirm: () => void | Promise<void>;
 };
 
 export function ConfirmDialog({
@@ -46,9 +47,11 @@ export function ConfirmDialog({
             variant={confirmVariant}
             size="sm"
             onClick={() => {
-              // Close first so an unmounting dialog cannot swallow the action.
+              // Close first so a second click cannot fire the action twice.
               onOpenChange(false);
-              onConfirm();
+              void Promise.resolve(onConfirm()).catch((cause) => {
+                console.error(cause);
+              });
             }}
           >
             {confirmLabel}

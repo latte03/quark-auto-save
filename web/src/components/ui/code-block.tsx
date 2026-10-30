@@ -94,6 +94,10 @@ function CodeBlockCopyButton({
 }: React.ComponentProps<typeof Button> & { value: string }) {
   const [copied, setCopied] = React.useState(false)
   const [copySeq, setCopySeq] = React.useState(0)
+  // Insecure origins expose no Clipboard API; disable up front instead of
+  // leaving a button that silently does nothing.
+  const canCopy =
+    typeof navigator !== "undefined" && Boolean(navigator.clipboard?.writeText)
 
   React.useEffect(() => {
     if (!copied) {
@@ -105,8 +109,7 @@ function CodeBlockCopyButton({
   }, [copied, copySeq])
 
   const copy = () => {
-    // Clipboard is unavailable on insecure origins; keep the button inert there.
-    if (!navigator.clipboard?.writeText) return
+    if (!canCopy) return
     navigator.clipboard
       .writeText(value)
       .then(() => {
@@ -123,7 +126,11 @@ function CodeBlockCopyButton({
         data-copied={copied || undefined}
         variant={variant}
         size={size}
-        aria-label={copied ? "Copied" : "Copy"}
+        disabled={!canCopy}
+        title={canCopy ? undefined : "当前地址不支持复制"}
+        aria-label={
+          canCopy ? (copied ? "Copied" : "Copy") : "当前地址不支持复制"
+        }
         className={cn(className)}
         onClick={(event) => {
           onClick?.(event)
@@ -170,7 +177,10 @@ function CodeBlockContent({
       data-numbered={numbered || undefined}
       dir="ltr"
       tabIndex={0}
-      style={{ ...style, counterReset: `line ${start - 1}` }}
+      style={{
+        counterReset: numbered ? `line ${start - 1}` : undefined,
+        ...style,
+      }}
       className={cn(
         "min-h-0 min-w-0 scroll-fade-x scrollbar-thin overflow-auto px-3 py-3 text-start font-mono leading-relaxed outline-none group-has-data-[slot=code-block-footer]/code-block:pb-2 group-has-data-[slot=code-block-header]/code-block:pt-2 group-data-[size=sm]/code-block:px-2.5 group-data-[size=sm]/code-block:py-2.5 group-data-[size=sm]/code-block:group-has-data-[slot=code-block-header]/code-block:pt-1.5 data-wrap:scroll-fade-y data-wrap:wrap-break-word data-wrap:whitespace-pre-wrap",
         className

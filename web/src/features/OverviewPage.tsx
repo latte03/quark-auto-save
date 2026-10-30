@@ -7,6 +7,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { RunView, Task } from "../lib/types";
+import { formatDateTime } from "../lib/format";
 import { AlertStrip } from "../components/AlertStrip";
 import { PageHeader } from "../components/PageHeader";
 import { PageSection } from "../components/PageSection";
@@ -121,7 +122,7 @@ export function OverviewPage({
           title="最近运行"
           description={
             latestRun
-              ? `${latestRun.label} · ${new Date(latestRun.started_at).toLocaleString("zh-CN", { hour12: false })}`
+              ? `${latestRun.label} · ${formatDateTime(latestRun.started_at)}`
               : "还没有运行记录"
           }
           action={
@@ -305,7 +306,7 @@ export function OverviewPage({
           <CalendarClock className="h-3 w-3" />
           {tasks.length} 个订阅 · {tracking} 追更 ·{" "}
           {latestRun
-            ? `最近运行 ${new Date(latestRun.started_at).toLocaleString("zh-CN", { hour12: false })}`
+            ? `最近运行 ${formatDateTime(latestRun.started_at)}`
             : "还没有运行记录"}
         </span>
         <span>quark-auto-save · self-hosted</span>

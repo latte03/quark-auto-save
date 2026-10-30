@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ListFilter, Search } from "lucide-react";
 import type { RunView, Task } from "../lib/types";
 import { cn } from "../lib/utils";
-import { nextRunRank } from "../lib/schedule";
+import { formatDateTime } from "../lib/format";
 import { AlertStrip } from "../components/AlertStrip";
 import { EmptyState } from "../components/EmptyState";
 import { PageHeader } from "../components/PageHeader";
@@ -58,10 +58,13 @@ function inFilter(status: Task["status"], filter: TaskFilter): boolean {
   }
 }
 
-function formatStartedAt(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("zh-CN", { hour12: false });
+function rankByNextRun(tasks: Task[]): Map<Task, number> {
+  const rank = new Map<Task, number>();
+  for (const task of tasks) {
+    const at = task.next_run_at ? Date.parse(task.next_run_at) : Number.NaN;
+    rank.set(task, Number.isNaN(at) ? Number.MAX_SAFE_INTEGER : at);
+  }
+  return rank;
 }
 
 type TasksPageProps = {
@@ -109,9 +112,10 @@ export function TasksPage({
       return [...list].sort((a, b) => a.taskname.localeCompare(b.taskname, "zh"));
     }
     if (sort === "next") {
-      return [...list].sort(
-        (a, b) => nextRunRank(a.next_run) - nextRunRank(b.next_run),
-      );
+      // Timestamps from the server keep the order independent of the browser's
+      // clock and timezone; unscheduled tasks sink to the end.
+      const rank = rankByNextRun(list);
+      return [...list].sort((a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0));
     }
     if (sort === "status") {
       return [...list].sort(
@@ -247,7 +251,7 @@ export function TasksPage({
       <footer className="flex flex-col gap-1 pb-2 font-mono text-[12px] text-subtle sm:flex-row sm:items-center sm:justify-between">
         <span>
           {tasks.length} 个订阅 · {counts.tracking} 追更 ·{" "}
-          {latestRun ? `最近运行 ${formatStartedAt(latestRun.started_at)}` : "还没有运行记录"}
+          {latestRun ? `最近运行 ${formatDateTime(latestRun.started_at)}` : "还没有运行记录"}
         </span>
         <span>quark-auto-save · self-hosted</span>
       </footer>

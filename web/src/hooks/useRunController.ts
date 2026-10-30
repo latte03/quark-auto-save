@@ -69,7 +69,7 @@ export function useRunController({
   }, []);
 
   const attach = useCallback(
-    (id: string) => {
+    (id: string): boolean => {
       closeStream();
       setLog([]);
       runningRef.current = true;
@@ -81,7 +81,7 @@ export function useRunController({
       } catch (cause) {
         releaseRun();
         notify(cause instanceof Error ? cause.message : "无法连接运行日志", "error");
-        return;
+        return false;
       }
       streamRef.current = source;
       source.onmessage = (event) => {
@@ -111,6 +111,7 @@ export function useRunController({
           revalidate();
         }
       };
+      return true;
     },
     [closeStream, loadLatest, notify, refreshTasks, releaseRun, revalidate],
   );
@@ -162,8 +163,7 @@ export function useRunController({
         lastRunRef.current = { indices: [], write: false, task };
         setDryRun(true);
         const { run_id } = await startRun([], false, task);
-        attach(run_id);
-        return true;
+        return attach(run_id);
       } catch (cause) {
         releaseRun();
         if (cause instanceof ApiError) {

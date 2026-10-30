@@ -107,6 +107,9 @@ export function TaskSheet({
       const saved = await onSave(next, runAfter);
       // 保存失败时保留面板与草稿，失败提示由父级给出。
       if (saved) onOpenChange(false);
+    } catch (cause) {
+      // 父级按约定返回 false，但抛错时也要有可见反馈。
+      notify(cause instanceof Error ? cause.message : "保存失败", "error");
     } finally {
       setSaving(false);
     }
@@ -121,6 +124,8 @@ export function TaskSheet({
       if (await onTry(next)) {
         notify("试运行已开始，可点「运行记录」查看日志", "ok");
       }
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "试运行启动失败", "error");
     } finally {
       setSaving(false);
     }

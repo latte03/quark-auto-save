@@ -126,6 +126,14 @@ func TestNextTimesForTask(t *testing.T) {
 	if label := nextRunLabel(task, "", monday); label != "今天 20:00" {
 		t.Fatalf("next run label = %q", label)
 	}
+	label, at := nextRunInfo(task, "", monday)
+	if label != "今天 20:00" || !at.Equal(time.Date(2026, 10, 26, 20, 0, 0, 0, time.Local)) {
+		t.Fatalf("next run info = %q / %v", label, at)
+	}
+	once := mustTask(t, `{"taskname":"once","mode":"once"}`)
+	if label, at := nextRunInfo(once, "", monday); label != "—" || !at.IsZero() {
+		t.Fatalf("once next run info = %q / %v", label, at)
+	}
 }
 
 func TestConfigNextRunsFallsBackToCrontab(t *testing.T) {

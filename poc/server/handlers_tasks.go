@@ -180,7 +180,7 @@ func readTask(r *http.Request) (*quark.Task, error) {
 	if err := json.Unmarshal(raw, &task); err != nil {
 		return nil, fmt.Errorf("任务格式错误: %w", err)
 	}
-	task.RemoveFields("index", "status", "latest", "next_run", "progress")
+	task.RemoveFields("index", "status", "latest", "next_run", "next_run_at", "progress")
 	task.SavePath = quark.NormalizePath(task.SavePath)
 	task.NormalizeMode()
 	return &task, nil
@@ -235,7 +235,11 @@ func taskView(index int, task *quark.Task, now time.Time, crontab string, stats 
 	}
 	view["index"] = index
 	view["status"] = statusOf(task, now)
-	view["next_run"] = nextRunLabel(task, crontab, now)
+	nextLabel, nextAt := nextRunInfo(task, crontab, now)
+	view["next_run"] = nextLabel
+	if !nextAt.IsZero() {
+		view["next_run_at"] = nextAt.Format(time.RFC3339)
+	}
 	saved := 0
 	latest := "—"
 	if stat, ok := stats[task.TaskName]; ok && stat.Saved > 0 {
@@ -300,9 +304,11 @@ func runweekDays(task *quark.Task) []int {
 
 var weekdayLabels = []string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}
 
-func nextRunLabel(task *quark.Task, crontab string, now time.Time) string {
+// nextRunInfo renders the human label and the instant behind it, so the console
+// can sort by absolute time instead of re-parsing localized weekday text.
+func nextRunInfo(task *quark.Task, crontab string, now time.Time) (string, time.Time) {
 	if task.IsOnce() {
-		return "—"
+		return "—", time.Time{}
 	}
 	var next time.Time
 	if times := nextTimesForTask(task, crontab, now, 1); len(times) > 0 {
@@ -312,25 +318,30 @@ func nextRunLabel(task *quark.Task, crontab string, now time.Time) string {
 		// drives tasks without runtime; keep its preview accurate.
 		schedule, err := cron.ParseStandard(strings.TrimSpace(crontab))
 		if err != nil {
-			return "—"
+			return "—", time.Time{}
 		}
 		cursor := now
 		for i := 0; i < 100 && next.IsZero(); i++ {
 			cursor = schedule.Next(cursor)
 			if cursor.IsZero() {
-				return "—"
+				return "—", time.Time{}
 			}
 			if scheduled, err := task.IsScheduled(cursor); err == nil && scheduled {
 				next = cursor
 			}
 		}
 		if next.IsZero() {
-			return "—"
+			return "—", time.Time{}
 		}
 	}
 	label := next.Format("15:04")
 	if next.Year() == now.Year() && next.YearDay() == now.YearDay() {
-		return "今天 " + label
+		return "今天 " + label, next
 	}
-	return weekdayLabels[int(next.Weekday())] + " " + label
+	return weekdayLabels[int(next.Weekday())] + " " + label, next
+}
+
+func nextRunLabel(task *quark.Task, crontab string, now time.Time) string {
+	label, _ := nextRunInfo(task, crontab, now)
+	return label
 }

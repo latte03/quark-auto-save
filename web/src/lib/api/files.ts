@@ -15,11 +15,13 @@ export function browse(path: string) {
   );
 }
 
-export function renameFile(path: string, name: string) {
+export async function renameFile(path: string, name: string) {
   const next = name.trim();
-  if (!next) throw new Error("名称不能为空");
-  if (next === "." || next === "..") throw new Error("名称不能是 . 或 ..");
-  if (/[\\/]/.test(next)) throw new Error("名称不能包含斜杠");
+  // Mirrors the server checks so a bad name never costs a round-trip.
+  if (!next) throw new Error("新名称不能为空");
+  if (next === "." || next === "..") throw new Error("新名称无效");
+  if (/[\\/]/.test(next)) throw new Error("新名称不能包含路径分隔符");
+  if (new TextEncoder().encode(next).length > 255) throw new Error("新名称过长");
   return post<{ fid: string; name: string }>("/api/files/rename", {
     path,
     name: next,
