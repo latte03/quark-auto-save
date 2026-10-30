@@ -135,7 +135,12 @@ func (q *qrLogin) start(ctx context.Context) (qrStart, error) {
 func (q *qrLogin) ticket(ctx context.Context, id string) (int, string, error) {
 	q.mu.Lock()
 	session := q.session
-	if session == nil || session.id != id || q.now().Sub(session.createdAt) > qrLifetime {
+	if session == nil || session.id != id {
+		// 旧标签页拿旧 id 轮询时不能顺手清掉新会话。
+		q.mu.Unlock()
+		return 0, "", errQRSession
+	}
+	if q.now().Sub(session.createdAt) > qrLifetime {
 		q.session = nil
 		q.mu.Unlock()
 		return 0, "", errQRSession

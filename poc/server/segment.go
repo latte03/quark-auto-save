@@ -257,7 +257,13 @@ func (q *downloadQueue) fetchSegment(ctx context.Context, url, cookie, ua string
 
 	buffer := make([]byte, 256*1024)
 	for offset <= end {
-		n, readErr := response.Body.Read(buffer)
+		// 服务端可能忽略 Range 上界整块返回，超出本段的内容必须丢弃，
+		// 否则会覆盖相邻分段并把 Done 计到本段长度之外。
+		chunk := buffer
+		if remaining := end - offset + 1; remaining < int64(len(chunk)) {
+			chunk = chunk[:remaining]
+		}
+		n, readErr := response.Body.Read(chunk)
 		if n > 0 {
 			if _, err := file.WriteAt(buffer[:n], offset); err != nil {
 				return fmt.Errorf("写入失败: %w", err)

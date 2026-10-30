@@ -98,8 +98,11 @@ func (c *Client) SignGrowth() (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if len(env.Data) == 0 || string(env.Data) == "null" {
+	if env.Code != 0 {
 		return 0, apiErr("growth sign", env, raw)
+	}
+	if len(env.Data) == 0 || string(env.Data) == "null" {
+		return 0, fmt.Errorf("签到结果为空")
 	}
 	var out struct {
 		SignDailyReward int64 `json:"sign_daily_reward"`

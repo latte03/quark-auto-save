@@ -197,9 +197,24 @@ func (s *Server) handleShareDetail(w http.ResponseWriter, r *http.Request) {
 
 	var dirFiles []quark.ShareFile
 	savepath := quark.NormalizePath(request.SavePath)
+	dirFID := "0"
 	if savepath != "/" {
-		if fids, err := client.GetFids([]string{savepath}); err == nil && len(fids) > 0 {
-			dirFiles, _ = client.LsDir(fids[0].FID)
+		fids, err := client.GetFids([]string{savepath})
+		if err != nil {
+			writeError(w, http.StatusBadGateway, apiMessage(err))
+			return
+		}
+		// 目录还不存在时没有可比对的文件，交给后续转存去创建。
+		dirFID = ""
+		if len(fids) > 0 {
+			dirFID = fids[0].FID
+		}
+	}
+	if dirFID != "" {
+		dirFiles, err = client.LsDir(dirFID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, apiMessage(err))
+			return
 		}
 	}
 	dirNames := make([]string, len(dirFiles))

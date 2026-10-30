@@ -2,6 +2,7 @@ package quark
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -125,6 +126,27 @@ func TestGrowthInfoErrorSurfacesMessage(t *testing.T) {
 	client.SetBaseURL(server.URL, server.URL)
 	if _, err := client.GetGrowthInfo(); err == nil {
 		t.Fatal("expected growth info error")
+	}
+}
+
+func TestSignGrowthErrorSurfacesCode(t *testing.T) {
+	server := accountServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": 200, "code": 31001, "message": "登录失效",
+			"data": map[string]any{"sign_daily_reward": 0},
+		})
+	})
+	defer server.Close()
+
+	client := New("kps=k; sign=s; vcode=v")
+	client.SetBaseURL(server.URL, server.URL)
+	_, err := client.SignGrowth()
+	if err == nil {
+		t.Fatal("expected sign error")
+	}
+	var errAPI *APIError
+	if !errors.As(err, &errAPI) || errAPI.Code != 31001 {
+		t.Fatalf("err = %v", err)
 	}
 }
 

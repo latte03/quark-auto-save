@@ -36,7 +36,7 @@ func localDownloadFromConfig(cfg *quark.Config) localDownloadSettings {
 	var stored struct {
 		Dir         string `json:"dir"`
 		Concurrency int    `json:"concurrency"`
-		MinFreeGB   int64  `json:"min_free_gb"`
+		MinFreeGB   *int64 `json:"min_free_gb"`
 	}
 	if err := json.Unmarshal(raw, &stored); err != nil {
 		return settings
@@ -45,8 +45,9 @@ func localDownloadFromConfig(cfg *quark.Config) localDownloadSettings {
 	if stored.Concurrency > 0 {
 		settings.Concurrency = stored.Concurrency
 	}
-	if stored.MinFreeGB >= 0 {
-		settings.MinFreeGB = stored.MinFreeGB
+	// 缺省时沿用默认阈值；显式写 0 才表示不检查剩余空间。
+	if stored.MinFreeGB != nil && *stored.MinFreeGB >= 0 {
+		settings.MinFreeGB = *stored.MinFreeGB
 	}
 	return settings
 }
@@ -109,9 +110,15 @@ func (s *Server) handleLocalBrowse(w http.ResponseWriter, r *http.Request) {
 	}
 	roots := make([]string, 0, len(authorized.Paths))
 	for _, item := range authorized.Paths {
-		if cleaned := filepath.Clean(strings.TrimSpace(item)); cleaned != "" && cleaned != "." {
-			roots = append(roots, cleaned)
+		cleaned := filepath.Clean(strings.TrimSpace(item))
+		if cleaned == "" || cleaned == "." {
+			continue
 		}
+		// 授权根目录自身也可能是指向别处的软链，先解析成真实路径再比对。
+		if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
+			cleaned = resolved
+		}
+		roots = append(roots, cleaned)
 	}
 	sort.Strings(roots)
 
@@ -127,12 +134,13 @@ func (s *Server) handleLocalBrowse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clean := filepath.Clean(requested)
-	root := matchAuthorizedRoot(clean, roots)
-	if root == "" {
+	// 按真实路径判定归属：授权目录内的软链不能把浏览带出授权范围。
+	resolved, root, ok := resolveAuthorizedPath(clean, roots)
+	if !ok {
 		writeError(w, http.StatusBadRequest, "只能浏览已授权目录")
 		return
 	}
-	entries, err := os.ReadDir(clean)
+	entries, err := os.ReadDir(resolved)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("读取目录失败: %v", err))
 		return
@@ -142,14 +150,14 @@ func (s *Server) handleLocalBrowse(w http.ResponseWriter, r *http.Request) {
 		if !entry.IsDir() {
 			continue
 		}
-		dirs = append(dirs, localDirEntry{Name: entry.Name(), Path: filepath.Join(clean, entry.Name())})
+		dirs = append(dirs, localDirEntry{Name: entry.Name(), Path: filepath.Join(resolved, entry.Name())})
 	}
 	sort.Slice(dirs, func(i, j int) bool { return dirs[i].Name < dirs[j].Name })
 	parent := ""
-	if clean != root {
-		parent = filepath.Dir(clean)
+	if resolved != root {
+		parent = filepath.Dir(resolved)
 	}
-	response["path"] = clean
+	response["path"] = resolved
 	response["parent"] = parent
 	response["dirs"] = dirs
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": response})
@@ -162,6 +170,20 @@ func matchAuthorizedRoot(path string, roots []string) string {
 		}
 	}
 	return ""
+}
+
+// resolveAuthorizedPath resolves path through any symlinks and reports the
+// real path plus the authorized root it lands in.
+func resolveAuthorizedPath(path string, roots []string) (string, string, bool) {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", "", false
+	}
+	root := matchAuthorizedRoot(resolved, roots)
+	if root == "" {
+		return "", "", false
+	}
+	return resolved, root, true
 }
 
 func validateLocalRoot(path string) string {

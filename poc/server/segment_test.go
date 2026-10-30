@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -149,6 +150,53 @@ func TestFetchSegmentedResumesSidecar(t *testing.T) {
 	}
 	if _, err := os.Stat(target + ".part.json"); !os.IsNotExist(err) {
 		t.Fatal("sidecar should be removed on success")
+	}
+}
+
+func TestFetchSegmentClipsOverlongBody(t *testing.T) {
+	payload := make([]byte, 400)
+	for index := range payload {
+		payload[index] = byte(index)
+	}
+	// 故意忽略 Range 上界：从 206 起到文件末尾整段返回。
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Range", "bytes 0-399/400")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(payload)
+	}))
+	t.Cleanup(server.Close)
+
+	target := filepath.Join(t.TempDir(), "clip.bin")
+	file, err := os.Create(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(int64(len(payload))); err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	segment := &segmentProgress{Start: 0, End: 99}
+	var mu sync.Mutex
+	var progress atomic.Int64
+	queue := newDownloadQueue(nil)
+	if err := queue.fetchSegment(context.Background(), server.URL, "", "", file, segment, &mu, func(delta int64) {
+		progress.Add(delta)
+	}); err != nil {
+		t.Fatalf("fetchSegment: %v", err)
+	}
+	if segment.Done != 100 || progress.Load() != 100 {
+		t.Fatalf("segment.Done=%d progress=%d, want 100", segment.Done, progress.Load())
+	}
+	content, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(content[:100], payload[:100]) {
+		t.Fatal("segment content mismatch")
+	}
+	if !bytes.Equal(content[100:], make([]byte, len(content)-100)) {
+		t.Fatal("bytes past the segment must stay untouched")
 	}
 }
 

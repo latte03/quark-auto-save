@@ -96,6 +96,47 @@ func TestQuarkQRLoginReplacesFirstAccount(t *testing.T) {
 	}
 }
 
+func TestQuarkQRStalePollKeepsSession(t *testing.T) {
+	instance, ts := newTestServer(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/cas/ajax/getTokenForQrcodeLogin":
+			_, _ = io.WriteString(w, `{"status":2000000,"data":{"members":{"token":"tok-3"}}}`)
+		case "/cas/ajax/getServiceTicketByQrcodeToken":
+			_, _ = io.WriteString(w, `{"status":50004001,"message":"waiting"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+	instance.qr.urls = qrEndpoints{
+		token:   upstream.URL + "/cas/ajax/getTokenForQrcodeLogin",
+		ticket:  upstream.URL + "/cas/ajax/getServiceTicketByQrcodeToken",
+		scan:    "https://su.quark.cn/4_eMHBJ",
+		account: upstream.URL + "/account/info",
+	}
+
+	client := loginClient(t, ts.URL)
+	response, err := client.Post(ts.URL+"/api/quark/qr", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var start struct {
+		Data qrStart `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&start); err != nil {
+		t.Fatal(err)
+	}
+
+	if status := pollQR(t, client, ts.URL, "stale-id"); status.Status != "expired" {
+		t.Fatalf("stale poll = %+v", status)
+	}
+	if status := pollQR(t, client, ts.URL, start.Data.ID); status.Status != "waiting" {
+		t.Fatalf("live session was dropped by a stale poll: %+v", status)
+	}
+}
+
 func TestQuarkQRSessionExpires(t *testing.T) {
 	instance, ts := newTestServer(t)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

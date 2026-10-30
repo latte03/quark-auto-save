@@ -66,6 +66,7 @@ func New(opts Options) (*Server, error) {
 		dataDir = filepath.Dir(opts.ConfigPath)
 	}
 	server.runLogs = newRunLogStore(filepath.Join(dataDir, "runs"))
+	server.runs.Logger = logger
 	server.runs.OnFinish = func(run *Run) {
 		if !run.Write {
 			return

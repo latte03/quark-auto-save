@@ -1,6 +1,9 @@
 package server
 
 import (
+	"io"
+	"log"
+	"strings"
 	"testing"
 	"time"
 )
@@ -32,6 +35,22 @@ func TestLatestReturnsActiveDryRun(t *testing.T) {
 	}
 	close(release)
 	waitRunDone(t, run)
+}
+
+func TestRunPanicFinalizesRun(t *testing.T) {
+	manager := NewRunManager()
+	manager.Logger = log.New(io.Discard, "", 0)
+	run, err := manager.Start("异常", true, func(*Run) error { panic("boom") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitRunDone(t, run)
+	if view := run.View(); !strings.Contains(view.Error, "boom") {
+		t.Fatalf("panic must surface as a run error, got %+v", view)
+	}
+	if _, err := manager.Start("next", true, func(*Run) error { return nil }); err != nil {
+		t.Fatalf("manager stayed locked after a panic: %v", err)
+	}
 }
 
 func TestLatestSkipsDryRuns(t *testing.T) {

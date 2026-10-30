@@ -139,7 +139,6 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 	}
 
 	stats := map[string]int{}
-	bans := map[int]string{}
 	additions := map[int]json.RawMessage{}
 	completed := map[int]bool{}
 	saved := 0
@@ -196,7 +195,10 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 		}
 		if task.ShareURLBan != "" && (index < 0 || task.ShareURLBan != snapshot.Tasks[index].ShareURLBan) {
 			if write && index >= 0 {
-				bans[index] = task.ShareURLBan
+				// 立即落盘，运行过程被打断时封锁标记也不会丢。
+				if err := s.store.ApplyRunResults(map[int]string{index: task.ShareURLBan}, nil, nil); err != nil {
+					logf("✗ 回写封锁标记失败: %v", err)
+				}
 			}
 		}
 		// A one-shot task finishes when its download job finishes; one that
@@ -211,7 +213,8 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 			}
 		}
 		var onDownloadDone func(string)
-		if write && task.IsOnce() && !task.OnceFinished() {
+		// 临时任务不在任务列表里；装了回调会按重名误标已有的一次性任务。
+		if write && index >= 0 && task.IsOnce() && !task.OnceFinished() {
 			onDownloadDone = s.onceDoneCallback(task)
 		}
 		if err := task.MergePluginDefaults(pluginList); err != nil {
@@ -255,7 +258,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 	if write {
 		run.setStats(stats)
 		if spec.Inline == nil {
-			if err := s.store.ApplyRunResults(bans, additions, completed); err != nil {
+			if err := s.store.ApplyRunResults(nil, additions, completed); err != nil {
 				logf("✗ 回写配置失败: %v", err)
 			}
 		}

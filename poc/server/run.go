@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -193,6 +195,7 @@ type RunManager struct {
 	order    []string
 	active   *Run
 	stats    map[string]TaskStats
+	Logger   *log.Logger
 	OnFinish func(*Run)
 }
 
@@ -237,7 +240,7 @@ func (m *RunManager) Start(label string, write bool, fn func(*Run) error) (*Run,
 		m.order = m.order[1:]
 	}
 	go func() {
-		err := fn(run)
+		err := m.invoke(run, fn)
 		run.mu.Lock()
 		run.saved = sumStats(run.stats)
 		run.mu.Unlock()
@@ -254,6 +257,20 @@ func (m *RunManager) Start(label string, write bool, fn func(*Run) error) (*Run,
 		run.publish()
 	}()
 	return run, nil
+}
+
+// invoke turns a panic inside the run body into an error: without this the
+// goroutine would take the whole process down and leave the run marked active.
+func (m *RunManager) invoke(run *Run, fn func(*Run) error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			if m.Logger != nil {
+				m.Logger.Printf("运行 %s 异常中断: %v\n%s", run.ID, recovered, debug.Stack())
+			}
+			err = fmt.Errorf("运行异常中断: %v", recovered)
+		}
+	}()
+	return fn(run)
 }
 
 func sumStats(stats map[string]int) int {

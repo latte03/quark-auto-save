@@ -246,7 +246,9 @@ func pushPlus(s *Sender, ctx context.Context, cfg Config, title, content string)
 	if code, ok := number(decoded["code"]); ok && code == 200 {
 		return nil
 	}
-	status, decoded, raw, err = s.postJSON(ctx, "http://pushplus.hxtrip.com/send", payload, map[string]string{
+	// Legacy mirror for CN networks; keep TLS so the token never travels in
+	// cleartext to the fallback host.
+	status, decoded, raw, err = s.postJSON(ctx, "https://pushplus.hxtrip.com/send", payload, map[string]string{
 		"Accept": "application/json",
 	})
 	if err != nil {
@@ -316,9 +318,13 @@ func wecomApp(s *Sender, ctx context.Context, cfg Config, title, content string)
 	}
 
 	origin := wecomOrigin(cfg)
+	agentIDNumber, err := strconv.ParseInt(agentID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("QYWX_AM 的 agentid 必须是数字：%q", agentID)
+	}
 	tokenURL := fmt.Sprintf("%s/cgi-bin/gettoken?corpid=%s&corpsecret=%s",
 		origin, url.QueryEscape(corpID), url.QueryEscape(corpSecret))
-	status, raw, err := s.request(ctx, http.MethodPost, tokenURL, nil, nil)
+	status, raw, err := s.request(ctx, http.MethodGet, tokenURL, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -332,8 +338,8 @@ func wecomApp(s *Sender, ctx context.Context, cfg Config, title, content string)
 
 	payload := map[string]any{
 		"touser":  touser,
-		"agentid": agentID,
-		"safe":    "0",
+		"agentid": agentIDNumber,
+		"safe":    0,
 	}
 	if mediaID == "" {
 		payload["msgtype"] = "text"
