@@ -167,7 +167,7 @@ func (q *downloadQueue) Pause(id string) bool {
 
 func (q *downloadQueue) Resume(id string) bool {
 	job := q.get(id)
-	if job == nil || !job.isPaused() {
+	if job == nil || !job.isPaused() || job.isCanceled() {
 		return false
 	}
 	// The worker may still be winding down after the pause; it observes the
@@ -462,22 +462,33 @@ func (j *downloadJob) view() downloadJobView {
 	return view
 }
 
-func (q *downloadQueue) run(job *downloadJob) {
-	job.mu.Lock()
-	job.processing = true
-	if job.started.IsZero() {
-		job.started = time.Now()
+// claimStart marks the job as owned by the worker and reports whether it must
+// bail out because it was paused while still queued. The pause check and the
+// processing handoff share one critical section: a concurrent Resume either
+// sees processing == false (and enqueues) or observes the cleared pause.
+func (j *downloadJob) claimStart() bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.processing = true
+	if j.started.IsZero() {
+		j.started = time.Now()
 	}
-	job.mu.Unlock()
+	// Canceled jobs fall through so run() can record that terminal status.
+	if !j.paused.Load() || j.canceled.Load() {
+		return false
+	}
+	j.status = "paused"
+	j.processing = false
+	return true
+}
 
+func (q *downloadQueue) run(job *downloadJob) {
+	if job.claimStart() {
+		return
+	}
 	if job.isCanceled() {
 		job.markFinished("canceled")
 		job.notifyFinish("canceled")
-		return
-	}
-	// A job paused while still queued must not start when the worker reaches it.
-	if job.isPaused() {
-		job.markFinished("paused")
 		return
 	}
 

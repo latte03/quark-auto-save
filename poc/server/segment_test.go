@@ -383,3 +383,56 @@ func TestResumeDuringRunDoesNotEnqueueTwice(t *testing.T) {
 		t.Fatal("a running job must not be queued a second time")
 	}
 }
+
+func TestClaimStartHandsOffPause(t *testing.T) {
+	// A paused job that is still queued bails out atomically: the worker
+	// releases ownership in the same critical section that observes the pause.
+	job := &downloadJob{}
+	job.paused.Store(true)
+	if !job.claimStart() {
+		t.Fatal("a paused queued job must bail out")
+	}
+	if job.processing || job.currentStatus() != "paused" {
+		t.Fatalf("bail-out left processing=%v status=%s", job.processing, job.currentStatus())
+	}
+
+	// Because ownership is already released, Resume must queue a new run.
+	queue := newDownloadQueue(nil)
+	queue.jobs["dl-paused"] = job
+	queue.order = append(queue.order, "dl-paused")
+	if !queue.Resume("dl-paused") {
+		t.Fatal("resume was rejected after the bail-out")
+	}
+	if len(queue.queue) != 1 {
+		t.Fatal("resume after the bail-out must re-enqueue the job")
+	}
+
+	// A canceled job falls through the claim so run() records "canceled"
+	// instead of parking it as paused.
+	canceled := &downloadJob{}
+	canceled.paused.Store(true)
+	canceled.canceled.Store(true)
+	if canceled.claimStart() {
+		t.Fatal("a canceled job must not be parked as paused")
+	}
+	canceled.markFinished("canceled")
+}
+
+func TestResumeRejectsCanceledJob(t *testing.T) {
+	queue := newDownloadQueue(nil)
+	job := &downloadJob{status: "paused"}
+	job.paused.Store(true)
+	job.canceled.Store(true)
+	queue.jobs["dl-canceled"] = job
+	queue.order = append(queue.order, "dl-canceled")
+
+	if queue.Resume("dl-canceled") {
+		t.Fatal("resume must reject a canceled job")
+	}
+	if len(queue.queue) != 0 {
+		t.Fatal("a canceled job must not be re-enqueued")
+	}
+	if !job.isPaused() {
+		t.Fatal("a rejected resume must leave the job untouched")
+	}
+}

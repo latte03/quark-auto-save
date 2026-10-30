@@ -29,7 +29,9 @@ func collectDownloadItems(tree *quark.Tree, task *quark.Task) []downloadItem {
 }
 
 // missingWalkBudget caps the cloud listing per run so a large save tree cannot
-// serialize an unbounded number of Quark calls on the run's critical path.
+// serialize an unbounded number of Quark calls on the run's critical path. The
+// walk stops at the budget; entries past it are reported and left for a manual
+// check rather than being promised to a later run.
 const missingWalkBudget = 4000
 
 // collectMissingDownloads walks the task's cloud save path and keeps the
@@ -106,7 +108,8 @@ func (s *Server) collectMissingDownloads(client *quark.Client, task *quark.Task,
 	}
 	walk(rootFID, "", 0)
 	if truncated {
-		logf("⚠ 云端保存目录较大，本次只检查了前 %d 个条目：%s", missingWalkBudget, savepath)
+		logf("⚠ 云端保存目录超过遍历上限（%d 条目），本次补齐只覆盖前面部分；目录过大时请手动核对本地文件：%s",
+			missingWalkBudget, savepath)
 	}
 	return items
 }
