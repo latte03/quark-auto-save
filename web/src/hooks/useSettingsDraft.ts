@@ -29,19 +29,21 @@ export function useSettingsDraft() {
   const dirty = Boolean(config && savedConfig && !deepEqual(config, savedConfig));
 
   const save = useCallback(async () => {
-    if (!config) return;
+    const snapshot = config;
+    if (!snapshot) return;
     const saved = await saveConfig({
-      cookie: config.cookie,
-      crontab: config.crontab,
-      push_config: config.push_config,
-      plugins: config.plugins,
-      magic_regex: config.magic_regex,
-      source: config.source,
-      local_download: config.local_download,
-      run_logs: config.run_logs,
+      cookie: snapshot.cookie,
+      crontab: snapshot.crontab,
+      push_config: snapshot.push_config,
+      plugins: snapshot.plugins,
+      magic_regex: snapshot.magic_regex,
+      source: snapshot.source,
+      local_download: snapshot.local_download,
+      run_logs: snapshot.run_logs,
     });
-    setConfig(saved);
     setSavedConfig(saved);
+    // 保存期间用户可能继续编辑：只有草稿没被改过才整体采用服务端结果。
+    setConfig((prev) => (prev && deepEqual(prev, snapshot) ? saved : prev));
   }, [config]);
 
   // Values the settings page fills in on its own (download dir, detected

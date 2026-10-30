@@ -66,20 +66,22 @@ export function MatchSection({ open }: { open: boolean }) {
   return (
     <section className="space-y-3 border-t border-line pt-3.5">
       <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          aria-expanded={showRules}
-          onClick={() => setShowRules((prev) => !prev)}
-          className="flex min-w-0 items-center gap-1.5 text-left"
-        >
-          <h3 className={sectionTitle}>保存规则</h3>
-          <ChevronDown
-            className={cn(
-              "h-3.5 w-3.5 shrink-0 text-subtle transition-transform",
-              showRules && "rotate-180",
-            )}
-          />
-        </button>
+        <h3 className={sectionTitle}>
+          <button
+            type="button"
+            aria-expanded={showRules}
+            onClick={() => setShowRules((prev) => !prev)}
+            className="flex min-w-0 items-center gap-1.5 text-left"
+          >
+            保存规则
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 shrink-0 text-subtle transition-transform",
+                showRules && "rotate-180",
+              )}
+            />
+          </button>
+        </h3>
         <div className="flex min-w-0 items-center gap-1.5">
           {showRules ? null : (
             <span className="max-w-[220px] truncate font-mono text-[11px] text-subtle">
@@ -100,7 +102,7 @@ export function MatchSection({ open }: { open: boolean }) {
         <div className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
             <Field>
-              <FieldLabel>匹配表达式</FieldLabel>
+              <FieldLabel htmlFor="task-rule-select">匹配表达式</FieldLabel>
               <Select
                 value={draft.magic_id || (draft.pattern ? "__custom__" : "__all__")}
                 items={[
@@ -122,7 +124,7 @@ export function MatchSection({ open }: { open: boolean }) {
                   }));
                 }}
               >
-                <SelectTrigger aria-label="匹配表达式">
+                <SelectTrigger id="task-rule-select">
                   <SelectValue placeholder="自定义 / 留空转存全部" />
                 </SelectTrigger>
                 <SelectContent>
@@ -153,8 +155,9 @@ export function MatchSection({ open }: { open: boolean }) {
               </Select>
             </Field>
             <Field>
-              <FieldLabel>替换表达式</FieldLabel>
+              <FieldLabel htmlFor="task-rule-replace">替换表达式</FieldLabel>
               <Input
+                id="task-rule-replace"
                 value={draft.replace}
                 onChange={(event) => update("replace", event.target.value)}
                 placeholder="留空使用魔法变量"

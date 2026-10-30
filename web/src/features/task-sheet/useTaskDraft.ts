@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppConfig, PluginConfig, Task } from "../../lib/types";
 import { deepEqual } from "../../lib/compare";
 import { useBeforeUnload } from "../../hooks/use-before-unload";
@@ -19,6 +19,12 @@ export function useTaskDraft({
 }: TaskDraftParams) {
   const [draft, setDraft] = useState<Task>(emptyTask);
   const [baseline, setBaseline] = useState("");
+  // 规则列表只在新开面板时用来挑默认值；把它放进依赖会让配置刷新重置草稿。
+  const magicRegexRef = useRef(magicRegex);
+
+  useEffect(() => {
+    magicRegexRef.current = magicRegex;
+  }, [magicRegex]);
 
   useEffect(() => {
     if (!open) return;
@@ -26,11 +32,11 @@ export function useTaskDraft({
       ? structuredClone(task)
       : {
           ...structuredClone(emptyTask),
-          magic_id: magicRegex[0]?.id ?? "",
+          magic_id: magicRegexRef.current[0]?.id ?? "",
         };
     setDraft(next);
     setBaseline(JSON.stringify(next));
-  }, [open, task, magicRegex]);
+  }, [open, task]);
 
   const dirty = open && baseline !== "" && !deepEqual(draft, JSON.parse(baseline));
   useBeforeUnload(dirty);

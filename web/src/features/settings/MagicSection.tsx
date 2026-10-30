@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   CircleHelp,
@@ -30,6 +30,8 @@ export function MagicSection() {
   const [renameDraft, setRenameDraft] = useState("");
   const [renamingBusy, setRenamingBusy] = useState(false);
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  // renamingBusy 要等渲染后才生效，回车连按两下会重复提交，用 ref 做同步锁。
+  const renamingRef = useRef(false);
 
   useEffect(() => {
     const rules = config.magic_regex;
@@ -67,6 +69,7 @@ export function MagicSection() {
 
   // Renaming only touches the display name; tasks reference the stable id.
   const commitRename = async (id: string) => {
+    if (renamingRef.current) return;
     const current = config.magic_regex.find((rule) => rule.id === id);
     const to = renameDraft.trim();
     if (!current || !to || to === current.name) {
@@ -77,6 +80,7 @@ export function MagicSection() {
       notify(`已存在规则 ${to}`, "warn");
       return;
     }
+    renamingRef.current = true;
     setRenamingBusy(true);
     try {
       await renameMagicRule(id, to);
@@ -87,6 +91,7 @@ export function MagicSection() {
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "重命名失败", "error");
     } finally {
+      renamingRef.current = false;
       setRenamingBusy(false);
     }
   };
@@ -179,6 +184,7 @@ export function MagicSection() {
                       className="h-7 w-48 font-mono text-[12px]"
                       onChange={(event) => setRenameDraft(event.target.value)}
                       onKeyDown={(event) => {
+                        if (event.nativeEvent.isComposing || renamingBusy) return;
                         if (event.key === "Enter") void commitRename(rule.id);
                         if (event.key === "Escape") setRenamingKey(null);
                       }}
@@ -245,8 +251,9 @@ export function MagicSection() {
               </div>
               <div className="mt-1.5 grid gap-2 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
                 <Field>
-                  <FieldLabel>匹配表达式</FieldLabel>
+                  <FieldLabel htmlFor={`magic-pattern-${rule.id}`}>匹配表达式</FieldLabel>
                   <Input
+                    id={`magic-pattern-${rule.id}`}
                     value={rule.pattern}
                     onChange={(event) =>
                       updateMagic(rule.id, "pattern", event.target.value)
@@ -255,8 +262,9 @@ export function MagicSection() {
                   />
                 </Field>
                 <Field>
-                  <FieldLabel>替换表达式</FieldLabel>
+                  <FieldLabel htmlFor={`magic-replace-${rule.id}`}>替换表达式</FieldLabel>
                   <Input
+                    id={`magic-replace-${rule.id}`}
                     value={rule.replace}
                     onChange={(event) =>
                       updateMagic(rule.id, "replace", event.target.value)

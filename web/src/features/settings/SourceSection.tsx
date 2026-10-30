@@ -80,8 +80,9 @@ export function SourceSection() {
           />
           <div className="grid gap-2 md:grid-cols-2">
             <Field>
-              <FieldLabel>服务器</FieldLabel>
+              <FieldLabel htmlFor="source-cloudsaver-server">服务器</FieldLabel>
               <Input
+                id="source-cloudsaver-server"
                 value={config.source.cloudsaver.server}
                 onChange={(event) =>
                   updateSource("cloudsaver", "server", event.target.value)
@@ -90,8 +91,9 @@ export function SourceSection() {
               />
             </Field>
             <Field>
-              <FieldLabel>用户名</FieldLabel>
+              <FieldLabel htmlFor="source-cloudsaver-username">用户名</FieldLabel>
               <Input
+                id="source-cloudsaver-username"
                 value={config.source.cloudsaver.username}
                 onChange={(event) =>
                   updateSource("cloudsaver", "username", event.target.value)
@@ -99,8 +101,9 @@ export function SourceSection() {
               />
             </Field>
             <Field>
-              <FieldLabel>密码</FieldLabel>
+              <FieldLabel htmlFor="source-cloudsaver-password">密码</FieldLabel>
               <Input
+                id="source-cloudsaver-password"
                 type="password"
                 value={config.source.cloudsaver.password}
                 onChange={(event) =>
@@ -109,8 +112,9 @@ export function SourceSection() {
               />
             </Field>
             <Field>
-              <FieldLabel>Token</FieldLabel>
+              <FieldLabel htmlFor="source-cloudsaver-token">Token</FieldLabel>
               <Input
+                id="source-cloudsaver-token"
                 type="password"
                 value={config.source.cloudsaver.token}
                 onChange={(event) =>
@@ -130,8 +134,9 @@ export function SourceSection() {
             }
           />
           <Field>
-            <FieldLabel>服务器</FieldLabel>
+            <FieldLabel htmlFor="source-pansou-server">服务器</FieldLabel>
             <Input
+              id="source-pansou-server"
               value={config.source.pansou.server}
               onChange={(event) =>
                 updateSource("pansou", "server", event.target.value)

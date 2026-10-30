@@ -1,3 +1,4 @@
+import { useEffect, useId, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Field, FieldLabel } from "../../components/ui/field";
@@ -60,6 +61,68 @@ export function RunTimesField({
   );
 }
 
+function PluginTextField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const id = useId();
+  return (
+    <Field className="py-1.5">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} />
+    </Field>
+  );
+}
+
+function PluginNumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  const id = useId();
+  // 数字输入保留本地草稿：直接 Number("") 会立刻写成 0，小数也输不进去。
+  const [text, setText] = useState(String(value));
+
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const parsed = Number(text.trim());
+    if (text.trim() === "" || !Number.isFinite(parsed)) {
+      setText(String(value));
+      return;
+    }
+    setText(String(parsed));
+    onChange(parsed);
+  };
+
+  return (
+    <Field className="py-1.5">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Input
+        id={id}
+        inputMode="numeric"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+      />
+    </Field>
+  );
+}
+
 export function PluginFields({
   values,
   onChange,
@@ -70,32 +133,34 @@ export function PluginFields({
   return (
     <>
       {Object.entries(values).map(([key, value]) => {
+        const label = pluginFieldLabels[key] ?? key;
         if (typeof value === "boolean") {
           return (
             <SwitchField
               key={key}
-              label={pluginFieldLabels[key] ?? key}
+              label={label}
               checked={value}
               onCheckedChange={(checked) => onChange(key, checked)}
             />
           );
         }
-        return (
-          <Field key={key} className="py-1.5">
-            <FieldLabel>{pluginFieldLabels[key] ?? key}</FieldLabel>
-            <Input
-              value={String(value)}
-              inputMode={typeof value === "number" ? "numeric" : undefined}
-              onChange={(event) =>
-                onChange(
-                  key,
-                  typeof value === "number"
-                    ? Number(event.target.value)
-                    : event.target.value,
-                )
-              }
+        if (typeof value === "number") {
+          return (
+            <PluginNumberField
+              key={key}
+              label={label}
+              value={value}
+              onChange={(next) => onChange(key, next)}
             />
-          </Field>
+          );
+        }
+        return (
+          <PluginTextField
+            key={key}
+            label={label}
+            value={value}
+            onChange={(next) => onChange(key, next)}
+          />
         );
       })}
     </>

@@ -208,13 +208,19 @@ export function OverviewPage({
         }
         bodyClassName="p-0"
       >
-        <TaskTable
-          tasks={recent}
-          onOpenTask={onOpenTask}
-          onRun={onRunTask}
-          onDelete={onDeleteTask}
-          onRepair={onRepairTask}
-        />
+        {recent.length === 0 ? (
+          <div className="px-4 py-5 text-[12px] text-muted-ink">
+            还没有任务，先用「新增任务」建立一个。
+          </div>
+        ) : (
+          <TaskTable
+            tasks={recent}
+            onOpenTask={onOpenTask}
+            onRun={onRunTask}
+            onDelete={onDeleteTask}
+            onRepair={onRepairTask}
+          />
+        )}
       </PageSection>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -238,8 +244,11 @@ export function OverviewPage({
               </div>
             ) : (
               <div className="divide-y divide-line-soft">
-                {banned.map((task) => (
-                  <div key={task.taskname} className="flex items-center gap-2 px-4 py-2.5">
+                {banned.map((task, index) => (
+                  <div
+                    key={`${task.taskname}-${index}`}
+                    className="flex items-center gap-2 px-4 py-2.5"
+                  >
                     <Wrench className="h-3.5 w-3.5 shrink-0 text-danger" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[12px] font-medium text-ink">
@@ -275,24 +284,31 @@ export function OverviewPage({
             bodyClassName="p-0"
           >
             <div className="divide-y divide-line-soft">
-              {upcoming.map((task) => (
-                <button
-                  key={task.taskname}
-                  onClick={() => onOpenTask(task)}
-                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-line-soft/40"
-                >
-                  <Clock3 className="h-3.5 w-3.5 shrink-0 text-subtle" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] font-medium text-ink">
-                      {task.taskname}
+              {upcoming.length === 0 ? (
+                <div className="px-4 py-5 text-[12px] text-muted-ink">
+                  没有等待运行的任务。
+                </div>
+              ) : (
+                upcoming.map((task, index) => (
+                  <button
+                    key={`${task.taskname}-${index}`}
+                    type="button"
+                    onClick={() => onOpenTask(task)}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-line-soft/40"
+                  >
+                    <Clock3 className="h-3.5 w-3.5 shrink-0 text-subtle" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[12px] font-medium text-ink">
+                        {task.taskname}
+                      </div>
+                      <div className="truncate font-mono text-[12px] text-muted-ink">
+                        {task.next_run}
+                      </div>
                     </div>
-                    <div className="truncate font-mono text-[12px] text-muted-ink">
-                      {task.next_run}
-                    </div>
-                  </div>
-                  <TaskStatusBadge status={task.status} />
-                </button>
-              ))}
+                    <TaskStatusBadge status={task.status} />
+                  </button>
+                ))
+              )}
             </div>
           </PageSection>
       </div>

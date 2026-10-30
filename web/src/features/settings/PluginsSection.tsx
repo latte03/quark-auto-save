@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ChevronDown, Loader2, Plug, Radar } from "lucide-react";
 import { pluginDescriptions, pluginLabels } from "../../lib/mock";
 import type { PluginConfig } from "../../lib/types";
@@ -16,6 +16,78 @@ function fieldLabel(key: string) {
   return pluginFieldLabels[key] ?? key;
 }
 
+function PluginTextField({
+  label,
+  secret,
+  placeholder,
+  value,
+  onChange,
+}: {
+  label: string;
+  secret: boolean;
+  placeholder: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const id = useId();
+  return (
+    <Field className="py-1.5">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Input
+        id={id}
+        type={secret ? "password" : "text"}
+        value={value}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </Field>
+  );
+}
+
+function PluginNumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  const id = useId();
+  // 数字输入保留本地草稿：直接 Number("") 会立刻写成 0，小数也输不进去。
+  const [text, setText] = useState(String(value));
+
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const parsed = Number(text.trim());
+    if (text.trim() === "" || !Number.isFinite(parsed)) {
+      setText(String(value));
+      return;
+    }
+    setText(String(parsed));
+    onChange(parsed);
+  };
+
+  return (
+    <Field className="py-1.5">
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Input
+        id={id}
+        inputMode="numeric"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+      />
+    </Field>
+  );
+}
+
 function PluginFields({
   plugin,
   values,
@@ -28,11 +100,12 @@ function PluginFields({
   return (
     <div className="grid gap-x-3 md:grid-cols-2">
       {Object.entries(values).map(([key, value]) => {
+        const label = fieldLabel(key);
         if (typeof value === "boolean") {
           return (
             <div key={key} className="md:col-span-1">
               <SwitchField
-                label={fieldLabel(key)}
+                label={label}
                 checked={value}
                 onCheckedChange={(checked) => onChange(key, checked)}
               />
@@ -41,26 +114,23 @@ function PluginFields({
         }
         if (typeof value === "number") {
           return (
-            <Field key={key} className="py-1.5">
-              <FieldLabel>{fieldLabel(key)}</FieldLabel>
-              <Input
-                type="number"
-                value={value}
-                onChange={(event) => onChange(key, Number(event.target.value))}
-              />
-            </Field>
+            <PluginNumberField
+              key={key}
+              label={label}
+              value={value}
+              onChange={(next) => onChange(key, next)}
+            />
           );
         }
         return (
-          <Field key={key} className="py-1.5">
-            <FieldLabel>{fieldLabel(key)}</FieldLabel>
-            <Input
-              type={isSecret(key) ? "password" : "text"}
-              value={value}
-              placeholder={isSecret(key) ? "已配置，修改后保存" : `${plugin} ${key}`}
-              onChange={(event) => onChange(key, event.target.value)}
-            />
-          </Field>
+          <PluginTextField
+            key={key}
+            label={label}
+            secret={isSecret(key)}
+            placeholder={isSecret(key) ? "已配置，修改后保存" : `${plugin} ${key}`}
+            value={value}
+            onChange={(next) => onChange(key, next)}
+          />
         );
       })}
     </div>
@@ -115,6 +185,7 @@ export function PluginsSection() {
           return (
             <div key={plugin}>
               <button
+                type="button"
                 className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-line-soft/30"
                 onClick={() => setOpenPlugin(open ? null : plugin)}
                 aria-expanded={open}

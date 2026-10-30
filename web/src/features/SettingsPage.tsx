@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AppConfig } from "../lib/types";
 import { PageHeader } from "../components/PageHeader";
 import { useToast } from "../components/ToastProvider";
@@ -46,6 +46,8 @@ export function SettingsPage({
   const notify = useToast();
   const [section, setSection] = useState<SettingsSection>("cookie");
   const [saving, setSaving] = useState(false);
+  // saving 要等渲染后才生效，连点两下会重复提交，用 ref 做同步锁。
+  const savingRef = useRef(false);
 
   const go = (id: SettingsSection) => {
     setSection(id);
@@ -56,6 +58,8 @@ export function SettingsPage({
   };
 
   const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       await onSave();
@@ -63,6 +67,7 @@ export function SettingsPage({
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "保存失败", "error");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
