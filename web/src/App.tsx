@@ -193,25 +193,25 @@ export default function App() {
   const openNewTask = () => setTaskSheet({ open: true, task: null });
   const handleDelete = (task: Task) => setDeleteTarget(task);
 
-  const handleSave = async (next: Task, runAfter: boolean) => {
+  const handleSave = async (next: Task, runAfter: boolean): Promise<boolean> => {
     const previous = taskSheet.task;
     let savedIndex: number | null = null;
     try {
       const { index } = await saveTask(previous, next);
       savedIndex = index;
-      setTaskSheet({ open: false, task: null });
       notify(runAfter ? "任务已保存，开始运行" : "任务已保存", "ok");
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "保存失败", "error");
-      return;
+      return false;
     }
-    if (!runAfter) return;
+    if (!runAfter) return true;
     // 启动失败属于运行问题，不能再报成「保存失败」。
     if (savedIndex == null) {
       notify("任务已保存，但没能定位到它，请在列表里手动运行", "warn");
-      return;
+      return true;
     }
     await runTasks([savedIndex], true);
+    return true;
   };
 
   const confirmDelete = async () => {
@@ -220,6 +220,8 @@ export default function App() {
     try {
       await removeTask(deleteTarget);
       setDeleteTarget(null);
+      // 从任务面板发起删除时，成功后一并收起面板。
+      setTaskSheet({ open: false, task: null });
       notify("任务已删除", "ok");
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "删除失败", "error");
@@ -402,7 +404,7 @@ export default function App() {
               setPage("settings");
             }}
             onSave={handleSave}
-            onTry={(task) => void runInline(task)}
+            onTry={runInline}
             onDelete={handleDelete}
           />
         </Suspense>

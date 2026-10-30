@@ -156,21 +156,23 @@ export function useRunController({
   );
 
   const runInline = useCallback(
-    async (task: Task) => {
-      if (!claimRun()) return;
+    async (task: Task): Promise<boolean> => {
+      if (!claimRun()) return false;
       try {
         lastRunRef.current = { indices: [], write: false, task };
         setDryRun(true);
         const { run_id } = await startRun([], false, task);
         attach(run_id);
+        return true;
       } catch (cause) {
         releaseRun();
         if (cause instanceof ApiError) {
           notify(cause.message, "error");
           if (cause.status === 409) attachRunning();
-          return;
+          return false;
         }
         notify(cause instanceof Error ? cause.message : "试运行启动失败", "error");
+        return false;
       }
     },
     [attach, attachRunning, claimRun, notify, releaseRun],

@@ -93,6 +93,7 @@ function CodeBlockCopyButton({
   ...props
 }: React.ComponentProps<typeof Button> & { value: string }) {
   const [copied, setCopied] = React.useState(false)
+  const [copySeq, setCopySeq] = React.useState(0)
 
   React.useEffect(() => {
     if (!copied) {
@@ -101,7 +102,19 @@ function CodeBlockCopyButton({
 
     const timeout = setTimeout(() => setCopied(false), 2000)
     return () => clearTimeout(timeout)
-  }, [copied])
+  }, [copied, copySeq])
+
+  const copy = () => {
+    // Clipboard is unavailable on insecure origins; keep the button inert there.
+    if (!navigator.clipboard?.writeText) return
+    navigator.clipboard
+      .writeText(value)
+      .then(() => {
+        setCopied(true)
+        setCopySeq((seq) => seq + 1)
+      })
+      .catch(() => {})
+  }
 
   return (
     <>
@@ -114,10 +127,7 @@ function CodeBlockCopyButton({
         className={cn(className)}
         onClick={(event) => {
           onClick?.(event)
-          navigator.clipboard
-            .writeText(value)
-            .then(() => setCopied(true))
-            .catch(() => {})
+          copy()
         }}
         {...props}
       >
@@ -149,14 +159,18 @@ function CodeBlockContent({
   lineNumbers?: boolean
   startLine?: number
 }) {
+  // Counter styling only makes sense for text we split into lines ourselves.
+  const numbered = lineNumbers && typeof children === "string"
+  const start = Number.isFinite(startLine) ? Math.max(1, Math.trunc(startLine)) : 1
+
   return (
     <pre
       data-slot="code-block-content"
       data-wrap={wrap || undefined}
-      data-numbered={lineNumbers || undefined}
+      data-numbered={numbered || undefined}
       dir="ltr"
       tabIndex={0}
-      style={{ counterReset: `line ${startLine - 1}`, ...style }}
+      style={{ ...style, counterReset: `line ${start - 1}` }}
       className={cn(
         "min-h-0 min-w-0 scroll-fade-x scrollbar-thin overflow-auto px-3 py-3 text-start font-mono leading-relaxed outline-none group-has-data-[slot=code-block-footer]/code-block:pb-2 group-has-data-[slot=code-block-header]/code-block:pt-2 group-data-[size=sm]/code-block:px-2.5 group-data-[size=sm]/code-block:py-2.5 group-data-[size=sm]/code-block:group-has-data-[slot=code-block-header]/code-block:pt-1.5 data-wrap:scroll-fade-y data-wrap:wrap-break-word data-wrap:whitespace-pre-wrap",
         className
@@ -167,8 +181,8 @@ function CodeBlockContent({
         data-slot="code-block-code"
         className="grid min-h-lh min-w-max content-start in-data-numbered:grid-cols-[auto_1fr] in-data-wrap:min-w-0"
       >
-        {lineNumbers && typeof children === "string"
-          ? children
+        {numbered
+          ? (children as string)
               .replace(/\n$/, "")
               .split("\n")
               .map((line, index) => (

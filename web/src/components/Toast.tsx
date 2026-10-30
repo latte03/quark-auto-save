@@ -76,6 +76,7 @@ export function Toast({
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", toneText[tone])} />
       <span className="text-[12px] leading-5 text-ink">{shown.message}</span>
       <button
+        type="button"
         onClick={onClose}
         aria-label="关闭提示"
         className="-mr-0.5 ml-0.5 grid h-5 w-5 shrink-0 place-items-center rounded text-subtle transition-colors duration-150 ease-out hover:bg-line-soft hover:text-ink"

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ListFilter, Search } from "lucide-react";
 import type { RunView, Task } from "../lib/types";
 import { cn } from "../lib/utils";
+import { nextRunRank } from "../lib/schedule";
 import { AlertStrip } from "../components/AlertStrip";
 import { EmptyState } from "../components/EmptyState";
 import { PageHeader } from "../components/PageHeader";
@@ -27,6 +28,13 @@ const filterLabels: Record<TaskFilter, string> = {
   banned: "失效",
 };
 
+const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: "recent", label: "默认顺序" },
+  { value: "name", label: "名称" },
+  { value: "next", label: "下次运行" },
+  { value: "status", label: "状态" },
+];
+
 const statusOrder: Record<Task["status"], number> = {
   banned: 0,
   once: 1,
@@ -48,6 +56,12 @@ function inFilter(status: Task["status"], filter: TaskFilter): boolean {
     default:
       return status === filter;
   }
+}
+
+function formatStartedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("zh-CN", { hour12: false });
 }
 
 type TasksPageProps = {
@@ -75,7 +89,6 @@ export function TasksPage({
 }: TasksPageProps) {
   const [filter, setFilter] = useState<TaskFilter>(initialFilter);
   const [sort, setSort] = useState<Sort>("recent");
-  const bannedCount = tasks.filter((task) => task.status === "banned").length;
 
   useEffect(() => {
     setFilter(initialFilter);
@@ -96,7 +109,9 @@ export function TasksPage({
       return [...list].sort((a, b) => a.taskname.localeCompare(b.taskname, "zh"));
     }
     if (sort === "next") {
-      return [...list].sort((a, b) => a.next_run.localeCompare(b.next_run, "zh"));
+      return [...list].sort(
+        (a, b) => nextRunRank(a.next_run) - nextRunRank(b.next_run),
+      );
     }
     if (sort === "status") {
       return [...list].sort(
@@ -106,13 +121,22 @@ export function TasksPage({
     return list;
   }, [tasks, filter, query, sort]);
 
-  const counts: Record<TaskFilter, number> = {
-    all: tasks.length,
-    tracking: tasks.filter((task) => task.status === "tracking").length,
-    waiting: tasks.filter((task) => inFilter(task.status, "waiting")).length,
-    done: tasks.filter((task) => inFilter(task.status, "done")).length,
-    banned: bannedCount,
-  };
+  const counts = useMemo<Record<TaskFilter, number>>(() => {
+    const next: Record<TaskFilter, number> = {
+      all: tasks.length,
+      tracking: 0,
+      waiting: 0,
+      done: 0,
+      banned: 0,
+    };
+    for (const task of tasks) {
+      if (task.status === "tracking") next.tracking += 1;
+      if (inFilter(task.status, "waiting")) next.waiting += 1;
+      if (inFilter(task.status, "done")) next.done += 1;
+      if (task.status === "banned") next.banned += 1;
+    }
+    return next;
+  }, [tasks]);
 
   return (
     <div className="space-y-4">
@@ -120,10 +144,10 @@ export function TasksPage({
         title="任务"
         description="每个任务对应一个分享链接，按排程追更或只执行一次。"
       />
-      {bannedCount > 0 ? (
+      {counts.banned > 0 ? (
         <AlertStrip
           tone="warn"
-          title={`${bannedCount} 条分享链接已失效`}
+          title={`${counts.banned} 条分享链接已失效`}
           description="这些任务会被跳过，直到链接被替换。"
           actionLabel="只看失效"
           onAction={() => setFilter("banned")}
@@ -136,6 +160,8 @@ export function TasksPage({
             {(Object.keys(filterLabels) as TaskFilter[]).map((key) => (
               <button
                 key={key}
+                type="button"
+                aria-pressed={filter === key}
                 onClick={() => setFilter(key)}
                 className={cn(
                   "flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-[background-color,color] duration-150 ease-out",
@@ -168,22 +194,18 @@ export function TasksPage({
             </div>
             <Select
               value={sort}
-              items={[
-                { value: "recent", label: "默认顺序" },
-                { value: "name", label: "名称" },
-                { value: "next", label: "下次运行" },
-                { value: "status", label: "状态" },
-              ]}
+              items={SORT_OPTIONS}
               onValueChange={(value) => value && setSort(value as Sort)}
             >
               <SelectTrigger className="h-7 w-[118px] text-[12px]" aria-label="排序">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="recent">默认顺序</SelectItem>
-                <SelectItem value="name">名称</SelectItem>
-                <SelectItem value="next">下次运行</SelectItem>
-                <SelectItem value="status">状态</SelectItem>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -225,9 +247,7 @@ export function TasksPage({
       <footer className="flex flex-col gap-1 pb-2 font-mono text-[12px] text-subtle sm:flex-row sm:items-center sm:justify-between">
         <span>
           {tasks.length} 个订阅 · {counts.tracking} 追更 ·{" "}
-          {latestRun
-            ? `最近运行 ${new Date(latestRun.started_at).toLocaleString("zh-CN", { hour12: false })}`
-            : "还没有运行记录"}
+          {latestRun ? `最近运行 ${formatStartedAt(latestRun.started_at)}` : "还没有运行记录"}
         </span>
         <span>quark-auto-save · self-hosted</span>
       </footer>

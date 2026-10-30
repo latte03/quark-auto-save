@@ -12,9 +12,10 @@ type ConfirmDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
+  description?: string;
   confirmLabel: string;
   cancelLabel?: string;
+  confirmVariant?: "destructive" | "default";
   onConfirm: () => void;
 };
 
@@ -25,6 +26,7 @@ export function ConfirmDialog({
   description,
   confirmLabel,
   cancelLabel = "取消",
+  confirmVariant = "destructive",
   onConfirm,
 }: ConfirmDialogProps) {
   return (
@@ -32,13 +34,23 @@ export function ConfirmDialog({
       <DialogContent className="w-[min(420px,calc(100vw-2rem))]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          {description ? (
+            <DialogDescription>{description}</DialogDescription>
+          ) : null}
         </DialogHeader>
         <DialogFooter>
           <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
             {cancelLabel}
           </Button>
-          <Button variant="destructive" size="sm" onClick={onConfirm}>
+          <Button
+            variant={confirmVariant}
+            size="sm"
+            onClick={() => {
+              // Close first so an unmounting dialog cannot swallow the action.
+              onOpenChange(false);
+              onConfirm();
+            }}
+          >
             {confirmLabel}
           </Button>
         </DialogFooter>

@@ -16,9 +16,13 @@ export function browse(path: string) {
 }
 
 export function renameFile(path: string, name: string) {
+  const next = name.trim();
+  if (!next) throw new Error("名称不能为空");
+  if (next === "." || next === "..") throw new Error("名称不能是 . 或 ..");
+  if (/[\\/]/.test(next)) throw new Error("名称不能包含斜杠");
   return post<{ fid: string; name: string }>("/api/files/rename", {
     path,
-    name,
+    name: next,
   });
 }
 

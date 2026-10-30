@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
+  AlertTriangle,
   FlaskConical,
-  Loader2,
   Play,
   Trash2,
 } from "lucide-react";
@@ -41,8 +41,8 @@ type TaskSheetProps = {
   pluginDefaults: Record<string, PluginConfig>;
   searchReady: boolean;
   onOpenSettings: () => void;
-  onSave: (task: Task, runAfter: boolean) => void;
-  onTry: (task: Task) => void;
+  onSave: (task: Task, runAfter: boolean) => Promise<boolean>;
+  onTry: (task: Task) => Promise<boolean>;
   onDelete: (task: Task) => void;
 };
 
@@ -69,6 +69,7 @@ export function TaskSheet({
   const link = useLinkValidation(open, task);
   const [picker, setPicker] = useState<PickerMode | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const isNew = !task;
   const banned = Boolean(draft.shareurl_ban);
@@ -82,10 +83,11 @@ export function TaskSheet({
     setConfirmClose(true);
   };
 
-  const submit = (runAfter: boolean) => {
+  // 保存与试运行共用同一份规范化结果，避免两条路径的字段产生差异。
+  const buildPayload = () => {
     if (!draft.taskname.trim() || !draft.shareurl.trim() || !draft.savepath.trim()) {
       notify("任务名称、分享链接、保存路径为必填项", "warn");
-      return;
+      return null;
     }
     const next: Task = {
       ...draft,
@@ -93,21 +95,35 @@ export function TaskSheet({
       status: banned ? "tracking" : draft.status,
     };
     if (!onceMode) delete next.mode;
-    onSave(next, runAfter);
-    onOpenChange(false);
+    return next;
   };
 
-  const tryRun = () => {
-    if (!draft.taskname.trim() || !draft.shareurl.trim() || !draft.savepath.trim()) {
-      notify("任务名称、分享链接、保存路径为必填项", "warn");
-      return;
+  const submit = async (runAfter: boolean) => {
+    if (saving) return;
+    const next = buildPayload();
+    if (!next) return;
+    setSaving(true);
+    try {
+      const saved = await onSave(next, runAfter);
+      // 保存失败时保留面板与草稿，失败提示由父级给出。
+      if (saved) onOpenChange(false);
+    } finally {
+      setSaving(false);
     }
-    onTry({
-      ...draft,
-      shareurl_ban: undefined,
-      status: banned ? "tracking" : draft.status,
-    });
-    notify("试运行已开始，可点「运行记录」查看日志", "ok");
+  };
+
+  const tryRun = async () => {
+    if (saving) return;
+    const next = buildPayload();
+    if (!next) return;
+    setSaving(true);
+    try {
+      if (await onTry(next)) {
+        notify("试运行已开始，可点「运行记录」查看日志", "ok");
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -163,9 +179,10 @@ export function TaskSheet({
                 variant="ghost"
                 size="sm"
                 className="text-danger hover:bg-danger-soft hover:text-danger"
+                disabled={saving}
                 onClick={() => {
-                  onDelete(draft);
-                  onOpenChange(false);
+                  // 删除走确认弹窗；面板在删除成功后由父级关闭，取消时保留草稿。
+                  if (task) onDelete(task);
                 }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -176,15 +193,29 @@ export function TaskSheet({
               <Button variant="secondary" size="sm" onClick={requestClose}>
                 取消
               </Button>
-              <Button variant="secondary" size="sm" onClick={tryRun}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={saving}
+                onClick={() => void tryRun()}
+              >
                 <FlaskConical className="h-3.5 w-3.5" />
                 试运行
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => submit(false)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={saving}
+                onClick={() => void submit(false)}
+              >
                 保存
               </Button>
-              <Button size="sm" onClick={() => submit(true)}>
-                {banned ? <Loader2 className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              <Button size="sm" disabled={saving} onClick={() => void submit(true)}>
+                {banned ? (
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
                 {onceMode ? "保存并执行" : "保存并运行"}
               </Button>
             </div>
