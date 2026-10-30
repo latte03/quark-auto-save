@@ -26,7 +26,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
-import type { ToastTone } from "../components/Toast";
+import { useToast } from "../components/ToastProvider";
 
 type FilePickerDialogProps = {
   open: boolean;
@@ -34,7 +34,6 @@ type FilePickerDialogProps = {
   task: Task;
   onOpenChange: (open: boolean) => void;
   onPickPath: (path: string) => void;
-  onNotify: (message: string, tone?: ToastTone) => void;
 };
 
 export function FilePickerDialog({
@@ -43,8 +42,8 @@ export function FilePickerDialog({
   task,
   onOpenChange,
   onPickPath,
-  onNotify,
 }: FilePickerDialogProps) {
+  const notify = useToast();
   const [path, setPath] = useState("/");
   const [manualPath, setManualPath] = useState("");
   const [entries, setEntries] = useState<BrowseEntry[]>([]);
@@ -386,7 +385,7 @@ export function FilePickerDialog({
             <Button
               size="sm"
               onClick={() => {
-                onNotify("预览已确认，保存任务后按此规则转存", "ok");
+                notify("预览已确认，保存任务后按此规则转存", "ok");
                 onOpenChange(false);
               }}
             >

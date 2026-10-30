@@ -205,18 +205,31 @@ export function TaskTable({
                         }
                       />
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onOpenTask(task)}>
+                        <DropdownMenuItem
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenTask(task);
+                          }}
+                        >
                           <Pencil className="h-3.5 w-3.5" />
                           编辑任务
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onRun(task)}>
+                        <DropdownMenuItem
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRun(task);
+                          }}
+                        >
                           <Play className="h-3.5 w-3.5" />
                           立即运行
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-danger focus:bg-danger-soft focus:text-danger"
-                          onClick={() => onDelete(task)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDelete(task);
+                          }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           删除任务

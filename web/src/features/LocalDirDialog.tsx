@@ -11,7 +11,6 @@ import { browseLocalDirs, type LocalDirBrowse } from "../lib/api";
 import { pickSharedDirectory } from "../lib/trim";
 import { cn } from "../lib/utils";
 import { Button } from "../components/ui/button";
-import type { ToastTone } from "../components/Toast";
 import {
   Dialog,
   DialogBody,
@@ -21,13 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import { useToast } from "../components/ToastProvider";
 
 type LocalDirDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial?: string;
   onSelect: (path: string) => void;
-  onNotify: (message: string, tone?: ToastTone) => void;
 };
 
 // Pick a folder inside the administrator-approved roots; new authorisation is
@@ -37,8 +36,8 @@ export function LocalDirDialog({
   onOpenChange,
   initial,
   onSelect,
-  onNotify,
 }: LocalDirDialogProps) {
+  const notify = useToast();
   const [data, setData] = useState<LocalDirBrowse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -90,10 +89,10 @@ export function LocalDirDialog({
     try {
       const dir = await pickSharedDirectory();
       if (!dir) return;
-      onNotify(`已授权 ${dir}`, "ok");
+      notify(`已授权 ${dir}`, "ok");
       await loadPath(dir);
     } catch (cause) {
-      onNotify(
+      notify(
         cause instanceof Error ? cause.message : "无法打开飞牛目录选择器",
         "warn",
       );
