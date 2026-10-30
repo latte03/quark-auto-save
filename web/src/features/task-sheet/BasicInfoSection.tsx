@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   FolderOpen,
   Link2,
@@ -35,6 +35,7 @@ export function BasicInfoSection() {
   const notify = useToast();
   const [pickingLocal, setPickingLocal] = useState(false);
   const [localPickerOpen, setLocalPickerOpen] = useState(false);
+  const downloadDirId = useId();
 
   const pickLocalDirectory = async () => {
     setPickingLocal(true);
@@ -171,6 +172,7 @@ export function BasicInfoSection() {
                   value={search.query}
                   onChange={(event) => search.setQuery(event.target.value)}
                   placeholder="搜索资源，例如：黑镜"
+                  aria-label="搜索资源"
                   className="h-7"
                 />
                 <Button
@@ -267,9 +269,10 @@ export function BasicInfoSection() {
       {draft.local_download?.enable ? (
         <>
           <Field>
-            <FieldLabel>下载目录</FieldLabel>
+            <FieldLabel htmlFor={downloadDirId}>下载目录</FieldLabel>
             <div className="flex items-center gap-1.5">
               <Input
+                id={downloadDirId}
                 value={draft.local_download?.dir ?? ""}
                 onChange={(event) =>
                   update("local_download", {

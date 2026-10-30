@@ -19,6 +19,7 @@ import {
   type QuarkQR,
 } from "../../lib/api";
 import { cn } from "../../lib/utils";
+import { formatTime } from "../../lib/format";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -38,7 +39,7 @@ import { useSettings } from "./SettingsContext";
 type QRState = "waiting" | "confirmed" | "expired" | "error";
 
 export function CookieSection() {
-  const { config, setConfig, update, running, onSign } = useSettings();
+  const { config, update, running, onSign, onAdoptPatch } = useSettings();
   const notify = useToast();
   const [account, setAccount] = useState<QuarkAccount | null>(null);
   const [checkingAccount, setCheckingAccount] = useState(false);
@@ -97,7 +98,8 @@ export function CookieSection() {
             setQrNick(next.nickname ?? "");
             setQrNote(next.nickname ? `登录成功：${next.nickname}` : "登录成功");
             if (next.cookies) {
-              setConfig((prev) => ({ ...prev, cookie: next.cookies ?? prev.cookie }));
+              // 服务端已经把 Cookie 落盘，基线与草稿一起更新，不制造「未保存」。
+              onAdoptPatch({ cookie: next.cookies });
             }
             setAccount({
               ok: true,
@@ -126,7 +128,7 @@ export function CookieSection() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [qrOpen, qr, qrState, setConfig, notify]);
+  }, [qrOpen, qr, qrState, onAdoptPatch, notify]);
 
   return (
     <PageSection
@@ -135,7 +137,12 @@ export function CookieSection() {
       description="第一个账号执行转存，所有账号执行签到。可以扫码登录直接写入主账号，也可以手动粘贴 Cookie。"
       action={
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => void openQR()}>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={startingQR}
+            onClick={() => void openQR()}
+          >
             <QrCode className="h-3.5 w-3.5" />
             扫码登录
           </Button>
@@ -176,10 +183,7 @@ export function CookieSection() {
             )}
             {account?.ok && account.checked_at ? (
               <span className="text-subtle">
-                校验于{" "}
-                {new Date(account.checked_at).toLocaleTimeString("zh-CN", {
-                  hour12: false,
-                })}
+                校验于 {formatTime(account.checked_at)}
               </span>
             ) : null}
             {account && !account.ok && account.message ? (

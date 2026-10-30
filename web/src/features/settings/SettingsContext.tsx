@@ -38,6 +38,7 @@ type SettingsContextValue = {
   theme: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
   onAdoptDefaults: () => void;
+  onAdoptPatch: (patch: Partial<AppConfig>) => void;
   onSign: () => void;
   onTasksReload: () => void;
   detection: Detection;
@@ -53,6 +54,7 @@ export type SettingsProviderProps = {
   theme: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
   onAdoptDefaults: () => void;
+  onAdoptPatch: (patch: Partial<AppConfig>) => void;
   onSign: () => void;
   onTasksReload: () => void;
   children: ReactNode;
@@ -66,6 +68,7 @@ export function SettingsProvider({
   theme,
   onThemeChange,
   onAdoptDefaults,
+  onAdoptPatch,
   onSign,
   onTasksReload,
   children,
@@ -141,6 +144,7 @@ export function SettingsProvider({
       theme,
       onThemeChange,
       onAdoptDefaults,
+      onAdoptPatch,
       onSign,
       onTasksReload,
       detection,
@@ -158,6 +162,7 @@ export function SettingsProvider({
       theme,
       onThemeChange,
       onAdoptDefaults,
+      onAdoptPatch,
       onSign,
       onTasksReload,
       detection,

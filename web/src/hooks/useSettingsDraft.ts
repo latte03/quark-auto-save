@@ -54,11 +54,28 @@ export function useSettingsDraft() {
   // sources) are not unsaved edits, so the baseline absorbs them.
   const adoptDefaults = useCallback(() => setAdoptTick((tick) => tick + 1), []);
 
+  // Same idea for a patch the server already persisted (e.g. QR login writes
+  // cookies): update both sides so the page does not claim unsaved changes.
+  const adoptPatch = useCallback((patch: Partial<AppConfig>) => {
+    setConfig((prev) => (prev ? { ...prev, ...patch } : prev));
+    setSavedConfig((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
   useEffect(() => {
     if (adoptTick === adoptedTick.current) return;
     adoptedTick.current = adoptTick;
     setSavedConfig(config);
   }, [adoptTick, config]);
 
-  return { config, savedConfig, dirty, load, clear, update, save, adoptDefaults };
+  return {
+    config,
+    savedConfig,
+    dirty,
+    load,
+    clear,
+    update,
+    save,
+    adoptDefaults,
+    adoptPatch,
+  };
 }

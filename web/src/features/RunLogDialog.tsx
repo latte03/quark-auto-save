@@ -57,6 +57,9 @@ export function RunLogDialog({
   const stickRef = useRef(true);
   const copiedTimer = useRef<number | null>(null);
   const [copied, setCopied] = useState(false);
+  // HTTP 下浏览器不提供剪贴板，禁用按钮比点了没反应更清楚。
+  const canCopy =
+    typeof navigator !== "undefined" && Boolean(navigator.clipboard?.writeText);
 
   useEffect(() => {
     if (!open) return;
@@ -76,7 +79,7 @@ export function RunLogDialog({
   );
 
   const copyAll = async () => {
-    if (!navigator.clipboard) return;
+    if (!canCopy) return;
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
     } catch {
@@ -168,6 +171,8 @@ export function RunLogDialog({
           <Button
             variant="ghost"
             size="sm"
+            disabled={!canCopy}
+            title={canCopy ? undefined : "当前地址不支持复制"}
             onClick={() => void copyAll()}
           >
             {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
@@ -178,14 +183,14 @@ export function RunLogDialog({
               关闭
             </Button>
             {allowRerun ? (
-            <Button size="sm" onClick={onRunAgain} disabled={running}>
-              {running ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RotateCw className="h-3.5 w-3.5" />
-              )}
-              再次运行
-            </Button>
+              <Button size="sm" onClick={onRunAgain} disabled={running}>
+                {running ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCw className="h-3.5 w-3.5" />
+                )}
+                再次运行
+              </Button>
             ) : null}
           </div>
         </DialogFooter>

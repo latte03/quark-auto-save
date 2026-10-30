@@ -116,7 +116,15 @@ export function DownloadQueue() {
         <div className="mt-1 truncate font-mono text-[11px] text-subtle">
           {job.root}
         </div>
-        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-line-soft">
+        <div
+          role="progressbar"
+          aria-label={`${job.task_name} 下载进度`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+          aria-valuetext={`${percent}%`}
+          className="mt-1.5 h-1 overflow-hidden rounded-full bg-line-soft"
+        >
           <div
             className="h-full origin-left rounded-full bg-brand transition-transform duration-500 ease-out"
             style={{ transform: `scaleX(${percent / 100})` }}

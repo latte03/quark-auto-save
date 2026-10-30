@@ -40,12 +40,18 @@ export function useConsoleSession() {
     return () => setUnauthorizedHandler(null);
   }, [revalidate]);
 
+  // 重新登录后别再带着「已过期」的提示，否则下次退出登录会误报状态过期。
+  useEffect(() => {
+    if (session?.authenticated) setExpiredNotice("");
+  }, [session?.authenticated]);
+
   const signOut = useCallback(async () => {
     try {
       await logout();
     } catch {
       // The cookie is cleared server-side anyway on the next login.
     }
+    setExpiredNotice("");
     setSession((prev) => ({
       authenticated: false,
       username: "",

@@ -243,7 +243,7 @@ export function FileBrowser() {
                       {entry.is_dir ? "—" : formatBytes(entry.size)}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex items-center justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
+                      <div className="flex items-center justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                         <Button
                           variant="ghost"
                           size="icon-sm"

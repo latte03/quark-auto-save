@@ -25,6 +25,7 @@ type SettingsPageProps = {
   theme: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
   onAdoptDefaults: () => void;
+  onAdoptPatch: (patch: Partial<AppConfig>) => void;
   onSign: () => void;
   onSave: () => Promise<void>;
   onTasksReload: () => void;
@@ -39,6 +40,7 @@ export function SettingsPage({
   theme,
   onThemeChange,
   onAdoptDefaults,
+  onAdoptPatch,
   onSign,
   onSave,
   onTasksReload,
@@ -81,6 +83,7 @@ export function SettingsPage({
       theme={theme}
       onThemeChange={onThemeChange}
       onAdoptDefaults={onAdoptDefaults}
+      onAdoptPatch={onAdoptPatch}
       onSign={onSign}
       onTasksReload={onTasksReload}
     >

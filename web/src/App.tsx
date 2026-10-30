@@ -380,6 +380,7 @@ export default function App() {
                         onSave={handleSettingsSave}
                         onTasksReload={() => void refreshTasks()}
                         onAdoptDefaults={settings.adoptDefaults}
+                        onAdoptPatch={settings.adoptPatch}
                       />
                     ) : null}
                   </Suspense>

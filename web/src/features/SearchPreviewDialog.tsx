@@ -160,56 +160,68 @@ export function SearchPreviewDialog({
                     这个分享是空的，或当前子目录没有文件。
                   </div>
                 ) : null}
-                {files.map((file) => (
-                  <button
-                    key={file.fid}
-                    type="button"
-                    onClick={() =>
-                      file.is_dir &&
-                      setPath([...path, { fid: file.fid, name: file.name }])
-                    }
-                    className={cn(
-                      "grid w-full grid-cols-[1.7fr_88px_88px] items-center gap-3 px-3 py-2.5 text-left",
-                      file.is_dir && "hover:bg-line-soft/40",
-                    )}
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      {file.is_dir ? (
-                        <Folder className="h-3.5 w-3.5 shrink-0 text-brand" />
-                      ) : file.name.endsWith(".zip") ||
-                        file.name.endsWith(".rar") ? (
-                        <FileArchive className="h-3.5 w-3.5 shrink-0 text-warn" />
-                      ) : (
-                        <FileVideo className="h-3.5 w-3.5 shrink-0 text-muted-ink" />
-                      )}
-                      <span
-                        className={cn(
-                          "truncate text-[12px]",
-                          file.matched ? "text-ink" : "text-subtle",
+                {files.map((file) => {
+                  const rowClass = cn(
+                    "grid w-full grid-cols-[1.7fr_88px_88px] items-center gap-3 px-3 py-2.5 text-left",
+                    file.is_dir && "hover:bg-line-soft/40",
+                  );
+                  const content = (
+                    <>
+                      <div className="flex min-w-0 items-center gap-2">
+                        {file.is_dir ? (
+                          <Folder className="h-3.5 w-3.5 shrink-0 text-brand" />
+                        ) : file.name.endsWith(".zip") ||
+                          file.name.endsWith(".rar") ? (
+                          <FileArchive className="h-3.5 w-3.5 shrink-0 text-warn" />
+                        ) : (
+                          <FileVideo className="h-3.5 w-3.5 shrink-0 text-muted-ink" />
                         )}
-                      >
-                        {file.name}
+                        <span
+                          className={cn(
+                            "truncate text-[12px]",
+                            file.matched ? "text-ink" : "text-subtle",
+                          )}
+                        >
+                          {file.name}
+                        </span>
+                        {file.is_dir ? (
+                          <ChevronRight className="h-3 w-3 shrink-0 text-subtle" />
+                        ) : null}
+                      </div>
+                      <span className="font-mono text-[12px] text-subtle">
+                        {file.is_dir ? "—" : formatBytes(file.size ?? 0)}
                       </span>
-                      {file.is_dir ? (
-                        <ChevronRight className="h-3 w-3 shrink-0 text-subtle" />
-                      ) : null}
+                      <span>
+                        {file.is_dir ? (
+                          <Badge variant="neutral">目录</Badge>
+                        ) : !file.matched ? (
+                          <Badge variant="neutral">跳过</Badge>
+                        ) : file.saved ? (
+                          <Badge variant="neutral">已存在</Badge>
+                        ) : (
+                          <Badge variant="ok">将转存</Badge>
+                        )}
+                      </span>
+                    </>
+                  );
+                  // 只有目录能点进去；文件行不是控件，不该被读成按钮。
+                  return file.is_dir ? (
+                    <button
+                      key={file.fid}
+                      type="button"
+                      onClick={() =>
+                        setPath([...path, { fid: file.fid, name: file.name }])
+                      }
+                      className={rowClass}
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <div key={file.fid} className={rowClass}>
+                      {content}
                     </div>
-                    <span className="font-mono text-[12px] text-subtle">
-                      {file.is_dir ? "—" : formatBytes(file.size ?? 0)}
-                    </span>
-                    <span>
-                      {file.is_dir ? (
-                        <Badge variant="neutral">目录</Badge>
-                      ) : !file.matched ? (
-                        <Badge variant="neutral">跳过</Badge>
-                      ) : file.saved ? (
-                        <Badge variant="neutral">已存在</Badge>
-                      ) : (
-                        <Badge variant="ok">将转存</Badge>
-                      )}
-                    </span>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : null}

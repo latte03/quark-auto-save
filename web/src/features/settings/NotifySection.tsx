@@ -84,7 +84,7 @@ export function NotifySection() {
                 }
                 type={isSecret(key) ? "password" : "text"}
                 className="ml-auto h-7 max-w-[320px] font-mono text-[12px]"
-                aria-label={key}
+                aria-label={pushLabels[key] ?? key}
               />
               <Button
                 variant="ghost"
