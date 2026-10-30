@@ -68,15 +68,21 @@ export function AppSidebar({
     const active = page === item.page;
     return (
       <SidebarMenuItem key={item.page}>
+        {active ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-1 h-4 w-0.5 -translate-y-1/2 rounded-full bg-brand"
+          />
+        ) : null}
         <SidebarMenuButton
           isActive={active}
           onClick={() => handleNavigate(item.page)}
           aria-current={active ? "page" : undefined}
-          className="h-9 gap-2.5 px-2.5 text-[13px] text-sidebar-foreground/65 hover:text-sidebar-accent-foreground data-active:text-sidebar-accent-foreground"
+          className="h-9 gap-2.5 px-2.5 text-[13px] text-sidebar-foreground/65 transition-[background-color,color] duration-150 ease-out hover:text-sidebar-accent-foreground data-active:bg-white/[0.11] data-active:text-sidebar-accent-foreground"
         >
           <Icon
             className={cn(
-              "h-4 w-4 shrink-0",
+              "h-4 w-4 shrink-0 transition-colors duration-150 ease-out",
               active ? "text-white" : "text-sidebar-foreground/50",
             )}
             strokeWidth={1.6}

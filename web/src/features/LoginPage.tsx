@@ -32,8 +32,12 @@ export function LoginPage({ version, notice, onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
-      <div className="w-full max-w-[380px]">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-canvas px-4">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-48 h-[520px] bg-[radial-gradient(60%_100%_at_50%_0%,var(--brand-soft),transparent_70%)]"
+      />
+      <div className="auth-enter relative w-full max-w-[380px]">
         <div className="mb-5 flex items-center gap-2.5">
           <BrandMark className="h-9 w-9" />
           <div>
@@ -57,7 +61,7 @@ export function LoginPage({ version, notice, onLogin }: LoginPageProps) {
 
         <form
           onSubmit={submit}
-          className="rounded-panel border border-line bg-panel p-5 shadow-panel"
+          className="rounded-panel border border-line bg-panel/95 p-5 shadow-panel backdrop-blur-sm"
         >
           <div className="mb-4">
             <h1 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">登录控制台</h1>

@@ -355,8 +355,8 @@ export function FilesPage({ onNotify }: FilesPageProps) {
         </div>
         <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-line-soft">
           <div
-            className="h-full rounded-full bg-brand transition-[width] duration-500"
-            style={{ width: `${percent}%` }}
+            className="h-full origin-left rounded-full bg-brand transition-transform duration-500 ease-out"
+            style={{ transform: `scaleX(${percent / 100})` }}
           />
         </div>
         {job.message ? (

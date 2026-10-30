@@ -9,6 +9,11 @@
   --radius-panel: 8px;
   --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "Roboto Mono", Menlo, "PingFang SC", "Microsoft YaHei", monospace;
+
+  /* Built-in CSS curves are too weak for UI; these keep entrances crisp. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Colors and shadows stay runtime variables so `.dark` can swap them. */
@@ -112,57 +117,6 @@
   background: #334155;
 }
 
-@keyframes overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes dialog-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.99);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes sheet-in {
-  from {
-    opacity: 0;
-    transform: translateX(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes bar-grow {
-  from {
-    transform: scaleY(0.2);
-  }
-  to {
-    transform: scaleY(1);
-  }
-}
-
 @keyframes page-in {
   from {
     opacity: 0;
@@ -183,29 +137,12 @@
   }
 }
 
-.overlay-in {
-  animation: overlay-in 160ms ease-out;
-}
-
-.dialog-in {
-  animation: dialog-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.sheet-in {
-  animation: sheet-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.pop-in {
-  animation: pop-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.micro-bar {
-  transform-origin: bottom;
-  animation: bar-grow 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 .page-enter {
   animation: page-in 160ms ease-out both;
+}
+
+.auth-enter {
+  animation: section-in 320ms var(--ease-out) both;
 }
 
 .page-enter > * > * {
@@ -233,14 +170,26 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .overlay-in,
-  .dialog-in,
-  .sheet-in,
-  .pop-in,
-  .micro-bar,
   .page-enter,
-  .page-enter > * > * {
+  .page-enter > * > *,
+  .auth-enter {
     animation: none;
+  }
+
+  /* Keep fades and color changes; drop movement, layout and scale. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, background-color, border-color, color, fill, stroke !important;
+    transition-duration: 100ms !important;
+  }
+
+  /* Loading feedback stays visible even with motion reduced. */
+  .animate-spin {
+    animation-duration: 1.2s !important;
+    animation-iteration-count: infinite !important;
   }
 }
 

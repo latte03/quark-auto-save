@@ -138,7 +138,7 @@ export function TasksPage({
                 key={key}
                 onClick={() => setFilter(key)}
                 className={cn(
-                  "flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-colors",
+                  "flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] transition-[background-color,color] duration-150 ease-out",
                   filter === key
                     ? "bg-brand-soft font-medium text-brand-ink"
                     : "text-muted-ink hover:bg-line-soft hover:text-ink",

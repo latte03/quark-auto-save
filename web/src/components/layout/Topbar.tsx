@@ -25,7 +25,7 @@ export function Topbar({
   onOpenLog,
 }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-panel/95 px-4 backdrop-blur-sm">
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-panel/90 px-4 backdrop-blur-md supports-backdrop-filter:bg-panel/80">
       <SidebarTrigger
         aria-label="切换侧边栏"
         title="切换侧边栏"

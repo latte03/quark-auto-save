@@ -36,11 +36,11 @@ export function SummaryPanel({
           实时
         </div>
       </div>
-      <div className="grid flex-1 grid-cols-2 gap-2 px-3 pb-3 lg:grid-cols-4">
+      <div className="grid flex-1 grid-cols-2 gap-px border-t border-line/60 bg-line/50 lg:grid-cols-4">
         {metrics.map((metric) => (
           <div
             key={metric.label}
-            className="flex min-w-0 flex-col rounded-md bg-canvas/70 px-3 py-3"
+            className="flex min-w-0 flex-col bg-panel px-3.5 py-3"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="truncate text-[12px] text-muted-ink">{metric.label}</span>

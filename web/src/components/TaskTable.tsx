@@ -74,7 +74,7 @@ export function TaskTable({
               <tr
                 key={task.taskname}
                 className={cn(
-                  "group cursor-pointer border-b border-line-soft transition-colors last:border-b-0 hover:bg-brand-soft/25",
+                  "group cursor-pointer border-b border-line-soft transition-colors duration-150 ease-out last:border-b-0 hover:bg-brand-soft/30 active:bg-brand-soft/45",
                   task.status === "banned" && "bg-danger-soft/30 hover:bg-danger-soft/50",
                 )}
                 onClick={() => onOpenTask(task)}
@@ -114,14 +114,14 @@ export function TaskTable({
                         <div className="h-1 w-12 overflow-hidden rounded-full bg-line">
                           <div
                             className={cn(
-                              "h-full rounded-full transition-[width] duration-500 ease-out",
+                              "h-full origin-left rounded-full transition-transform duration-500 ease-out",
                               task.status === "banned"
                                 ? "bg-danger"
                                 : task.status === "done" || task.status === "once_done"
                                   ? "bg-muted"
                                   : "bg-ok",
                             )}
-                            style={{ width: `${progress}%` }}
+                            style={{ transform: `scaleX(${progress / 100})` }}
                           />
                         </div>
                         <span className="font-mono text-[12px] text-subtle">

@@ -44,7 +44,7 @@ export function AlertStrip({
       {actionLabel ? (
         <button
           onClick={onAction}
-          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[12px] font-medium underline-offset-2 hover:underline"
+          className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium whitespace-nowrap underline-offset-2 transition-opacity duration-150 ease-out hover:underline active:opacity-70"
         >
           {actionLabel}
           <ArrowRight className="h-3 w-3" />
