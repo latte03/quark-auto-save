@@ -49,9 +49,12 @@ export function ConfirmDialog({
             onClick={() => {
               // Close first so a second click cannot fire the action twice.
               onOpenChange(false);
-              void Promise.resolve(onConfirm()).catch((cause) => {
-                console.error(cause);
-              });
+              // .then wraps the call so a synchronous throw is caught too.
+              void Promise.resolve()
+                .then(() => onConfirm())
+                .catch((cause) => {
+                  console.error(cause);
+                });
             }}
           >
             {confirmLabel}

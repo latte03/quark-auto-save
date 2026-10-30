@@ -180,7 +180,7 @@ func readTask(r *http.Request) (*quark.Task, error) {
 	if err := json.Unmarshal(raw, &task); err != nil {
 		return nil, fmt.Errorf("任务格式错误: %w", err)
 	}
-	task.RemoveFields("index", "status", "latest", "next_run", "next_run_at", "progress")
+	task.StripDerivedFields()
 	task.SavePath = quark.NormalizePath(task.SavePath)
 	task.NormalizeMode()
 	return &task, nil

@@ -7,7 +7,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { RunView, Task } from "../lib/types";
-import { formatDateTime } from "../lib/format";
+import { formatDateTime, formatTime } from "../lib/format";
 import { AlertStrip } from "../components/AlertStrip";
 import { PageHeader } from "../components/PageHeader";
 import { PageSection } from "../components/PageSection";
@@ -190,11 +190,7 @@ export function OverviewPage({
             <div>
               <div className="text-[12px] text-muted-ink">开始时间</div>
               <div className="mt-0.5 font-mono text-[12px] font-medium">
-                {latestRun
-                  ? new Date(latestRun.started_at).toLocaleTimeString("zh-CN", {
-                      hour12: false,
-                    })
-                  : "—"}
+                {latestRun ? formatTime(latestRun.started_at) : "—"}
               </div>
             </div>
           </div>

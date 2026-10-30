@@ -496,6 +496,12 @@ func (t *Task) RemoveFields(names ...string) {
 	}
 }
 
+// StripDerivedFields drops every key the API computes per request, so a task
+// echoed back from the console never persists derived values into config.json.
+func (t *Task) StripDerivedFields() {
+	t.RemoveFields("index", "status", "latest", "next_run", "next_run_at", "progress")
+}
+
 // IsScheduled mirrors is_time(): the end date is inclusive and runweek uses
 // 1=Monday..7=Sunday.
 func (t *Task) IsScheduled(now time.Time) (bool, error) {

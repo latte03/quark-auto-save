@@ -37,7 +37,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "任务格式错误")
 			return
 		}
-		task.RemoveFields("index", "status", "latest", "next_run", "progress")
+		task.StripDerivedFields()
 		task.SavePath = quark.NormalizePath(task.SavePath)
 		task.NormalizeMode()
 		if err := validateTask(&task); err != nil {

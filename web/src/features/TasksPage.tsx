@@ -58,11 +58,14 @@ function inFilter(status: Task["status"], filter: TaskFilter): boolean {
   }
 }
 
+/** Sorts after every real timestamp; keeps the comparator total. */
+const UNSCHEDULED = Number.MAX_SAFE_INTEGER;
+
 function rankByNextRun(tasks: Task[]): Map<Task, number> {
   const rank = new Map<Task, number>();
   for (const task of tasks) {
     const at = task.next_run_at ? Date.parse(task.next_run_at) : Number.NaN;
-    rank.set(task, Number.isNaN(at) ? Number.MAX_SAFE_INTEGER : at);
+    rank.set(task, Number.isNaN(at) ? UNSCHEDULED : at);
   }
   return rank;
 }
@@ -115,7 +118,9 @@ export function TasksPage({
       // Timestamps from the server keep the order independent of the browser's
       // clock and timezone; unscheduled tasks sink to the end.
       const rank = rankByNextRun(list);
-      return [...list].sort((a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0));
+      return [...list].sort(
+        (a, b) => (rank.get(a) ?? UNSCHEDULED) - (rank.get(b) ?? UNSCHEDULED),
+      );
     }
     if (sort === "status") {
       return [...list].sort(

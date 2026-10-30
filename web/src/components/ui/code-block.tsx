@@ -119,24 +119,25 @@ function CodeBlockCopyButton({
       .catch(() => {})
   }
 
+  const copyLabel = canCopy ? (copied ? "Copied" : "Copy") : "当前地址不支持复制"
+
   return (
     <>
       <Button
+        {...props}
         data-slot="code-block-copy-button"
         data-copied={copied || undefined}
         variant={variant}
         size={size}
-        disabled={!canCopy}
-        title={canCopy ? undefined : "当前地址不支持复制"}
-        aria-label={
-          canCopy ? (copied ? "Copied" : "Copy") : "当前地址不支持复制"
-        }
-        className={cn(className)}
+        // aria-disabled keeps the button focusable, so the reason stays readable.
+        aria-disabled={!canCopy || undefined}
+        title={canCopy ? undefined : copyLabel}
+        aria-label={copyLabel}
+        className={cn(canCopy ? undefined : "opacity-50", className)}
         onClick={(event) => {
           onClick?.(event)
           copy()
         }}
-        {...props}
       >
         {copied ? (
           <CheckIcon
