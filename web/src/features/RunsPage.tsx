@@ -44,17 +44,21 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
   const [logLoading, setLogLoading] = useState(false);
   const [logError, setLogError] = useState("");
   const logSeq = useRef(0);
+  const loadSeq = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++loadSeq.current;
     setLoading(true);
     setError("");
     try {
       const result = await getRuns();
+      if (requestId !== loadSeq.current) return;
       setRuns(result.runs ?? []);
     } catch (cause) {
+      if (requestId !== loadSeq.current) return;
       setError(cause instanceof Error ? cause.message : "读取运行记录失败");
     } finally {
-      setLoading(false);
+      if (requestId === loadSeq.current) setLoading(false);
     }
   }, []);
 
@@ -93,6 +97,7 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
 
   const closeLog = () => {
     logSeq.current += 1;
+    setLogLoading(false);
     setOpenRun(null);
   };
 

@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import { useToast } from "../components/ToastProvider";
+import { normalizeDirPath } from "../lib/path";
 
 type LocalDirDialogProps = {
   open: boolean;
@@ -29,19 +30,16 @@ type LocalDirDialogProps = {
   onSelect: (path: string) => void;
 };
 
-function normalizePath(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  if (trimmed === "/") return "/";
-  return trimmed.replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
-}
-
+// 取最长匹配："/" 级别的授权目录不能把更具体的授权目录盖掉。
 function rootOf(path: string, roots: string[]) {
-  return roots.find((item) =>
-    item === "/"
-      ? path.startsWith("/")
-      : path === item || path.startsWith(`${item}/`),
-  );
+  return roots.reduce<string | undefined>((best, item) => {
+    const matched =
+      item === "/"
+        ? path.startsWith("/")
+        : path === item || path.startsWith(`${item}/`);
+    if (!matched) return best;
+    return !best || item.length > best.length ? item : best;
+  }, undefined);
 }
 
 // Pick a folder inside the administrator-approved roots; new authorisation is
@@ -130,8 +128,8 @@ export function LocalDirDialog({
     }
   };
 
-  const roots = (data?.roots ?? []).map(normalizePath);
-  const path = normalizePath(data?.path ?? "");
+  const roots = (data?.roots ?? []).map(normalizeDirPath);
+  const path = normalizeDirPath(data?.path ?? "");
   const root = rootOf(path, roots);
   const segments =
     root && path !== root

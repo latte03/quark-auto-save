@@ -76,8 +76,9 @@ export function RunLogDialog({
   );
 
   const copyAll = async () => {
+    if (!navigator.clipboard) return;
     try {
-      await navigator.clipboard?.writeText(lines.join("\n"));
+      await navigator.clipboard.writeText(lines.join("\n"));
     } catch {
       return;
     }

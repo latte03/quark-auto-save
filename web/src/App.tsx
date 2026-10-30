@@ -93,36 +93,37 @@ export default function App() {
   const { load: loadConfig, clear: clearConfig } = settings;
 
   const booted = useRef(false);
-  const bootInFlight = useRef(false);
+  // 重试/登录可能触发多次引导：只采用最新一次的结果，旧请求晚到也不覆盖状态。
+  const bootSeq = useRef(0);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   const bootstrap = useCallback(async () => {
-    // 重试按钮与登录回调可能同时触达，重叠的引导会互相覆盖会话与任务。
-    if (bootInFlight.current) return;
-    bootInFlight.current = true;
+    const runId = ++bootSeq.current;
+    const current = () => runId === bootSeq.current;
     setBootError("");
     try {
       const info = await getSession();
+      if (!current()) return;
       if (!info.authenticated) {
         setSession(info);
         return;
       }
       // 先取到配置与任务再标记已登录，失败时才回得到带重试的启动页。
       const [cfg, payload] = await Promise.all([getConfig(), getTasks()]);
+      if (!current()) return;
       loadConfig(cfg);
       applyTasks(payload);
       setSession(info);
       void loadLatestRun();
       if (payload.running) attachRun(payload.running);
     } catch (cause) {
+      if (!current()) return;
       if (cause instanceof ApiError && cause.status === 401) {
         markExpired();
         return;
       }
       // Keep the shell in its loading state so the retry screen can come back.
       setBootError(cause instanceof Error ? cause.message : "加载失败");
-    } finally {
-      bootInFlight.current = false;
     }
   }, [
     applyTasks,
@@ -156,6 +157,7 @@ export default function App() {
     clearConfig();
     setTaskSheet({ open: false, task: null });
     setDeleteTarget(null);
+    setDeleting(false);
     setLeaveTarget(null);
     setPage("overview");
     setTaskFilter("all");
@@ -260,7 +262,11 @@ export default function App() {
   if (!session.authenticated) {
     return (
       <>
-        <LoginPage version={session.version} notice={expiredNotice} onLogin={handleLogin} />
+        <LoginPage
+          version={session.version}
+          notice={expiredNotice || bootError}
+          onLogin={handleLogin}
+        />
         <Toast toast={toast} onClose={dismiss} />
       </>
     );
@@ -406,6 +412,7 @@ export default function App() {
             open={runs.logOpen}
             onOpenChange={runs.setLogOpen}
             lines={runs.log}
+            loading={runs.logLoading}
             running={runs.running}
             dry={runs.dryRun || runs.latestRun?.dry}
             onRunAgain={runs.rerun}

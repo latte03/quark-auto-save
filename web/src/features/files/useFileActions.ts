@@ -23,7 +23,7 @@ export function useFileActions(path: string, load: Reload) {
   // busy 状态要等渲染后才生效，回车连按两下会重复提交，用 ref 做同步锁。
   const busyRef = useRef(false);
 
-  const run = async (task: () => Promise<void>) => {
+  const run = useCallback(async (task: () => Promise<void>) => {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
@@ -33,7 +33,7 @@ export function useFileActions(path: string, load: Reload) {
       busyRef.current = false;
       setBusy(false);
     }
-  };
+  }, []);
 
   const openRename = (entry: BrowseEntry) => {
     setNameInput(entry.name);
@@ -57,31 +57,33 @@ export function useFileActions(path: string, load: Reload) {
       return;
     }
     await run(async () => {
+      const target = renameTarget;
       try {
-        await renameFile(joinPath(path, renameTarget.name), name);
+        await renameFile(joinPath(path, target.name), name);
         notify(`已重命名为 ${name}`, "ok");
-        setRenameTarget(null);
+        // 请求期间用户可能关掉又打开了别的条目，只关掉自己那一次。
+        setRenameTarget((current) => (current === target ? null : current));
         await load(path, (list) => list.some((entry) => entry.name === name));
       } catch (cause) {
         notify(cause instanceof Error ? cause.message : "重命名失败", "error");
       }
     });
-  }, [load, nameInput, notify, path, renameTarget]);
+  }, [load, nameInput, notify, path, renameTarget, run]);
 
   const submitDelete = useCallback(async () => {
     if (!deleteTarget) return;
     await run(async () => {
+      const target = deleteTarget;
       try {
-        await deleteFile(joinPath(path, deleteTarget.name));
-        notify(`已移入回收站：${deleteTarget.name}`, "ok");
-        const removedFID = deleteTarget.fid;
-        setDeleteTarget(null);
-        await load(path, (list) => !list.some((entry) => entry.fid === removedFID));
+        await deleteFile(joinPath(path, target.name));
+        notify(`已移入回收站：${target.name}`, "ok");
+        setDeleteTarget((current) => (current === target ? null : current));
+        await load(path, (list) => !list.some((entry) => entry.fid === target.fid));
       } catch (cause) {
         notify(cause instanceof Error ? cause.message : "删除失败", "error");
       }
     });
-  }, [deleteTarget, load, notify, path]);
+  }, [deleteTarget, load, notify, path, run]);
 
   const submitMkdir = useCallback(async () => {
     const name = nameInput.trim();
@@ -103,7 +105,7 @@ export function useFileActions(path: string, load: Reload) {
         notify(cause instanceof Error ? cause.message : "新建文件夹失败", "error");
       }
     });
-  }, [load, nameInput, notify, path]);
+  }, [load, nameInput, notify, path, run]);
 
   return {
     renameTarget,

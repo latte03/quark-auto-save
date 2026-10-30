@@ -87,7 +87,10 @@ export function LoginPage({ version, notice, onLogin }: LoginPageProps) {
                 name="username"
                 autoComplete="username"
                 value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                onChange={(event) => {
+                  setUsername(event.target.value);
+                  setError("");
+                }}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "login-error" : undefined}
                 placeholder="admin"
@@ -101,7 +104,10 @@ export function LoginPage({ version, notice, onLogin }: LoginPageProps) {
                 type="password"
                 autoComplete="current-password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setError("");
+                }}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "login-error" : undefined}
                 placeholder="••••••••"

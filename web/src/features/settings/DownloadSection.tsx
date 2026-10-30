@@ -31,6 +31,25 @@ export function DownloadSection() {
   const [loadingAuthorized, setLoadingAuthorized] = useState(false);
   const [dirPickerOpen, setDirPickerOpen] = useState(false);
   const checkSeq = useRef(0);
+  // 数字输入保留本地草稿，只在失焦/回车时写回配置，避免每次按键都钳制。
+  const [concurrencyText, setConcurrencyText] = useState(
+    String(config.local_download.concurrency),
+  );
+  const [minFreeText, setMinFreeText] = useState(
+    String(config.local_download.min_free_gb),
+  );
+  useEffect(() => {
+    setConcurrencyText(String(config.local_download.concurrency));
+  }, [config.local_download.concurrency]);
+  useEffect(() => {
+    setMinFreeText(String(config.local_download.min_free_gb));
+  }, [config.local_download.min_free_gb]);
+  // 授权列表回调要读「当前」目录，但 setConfig 的 updater 到下次渲染才执行，
+  // 所以在副作用里同步一份 ref，避免拿旧闭包里的值做判断。
+  const dirRef = useRef(config.local_download.dir);
+  useEffect(() => {
+    dirRef.current = config.local_download.dir;
+  }, [config.local_download.dir]);
 
   // 多次校验可能同时在飞（失焦、点授权目录、选目录），只认最新一次的结果。
   const checkDirectory = useCallback(
@@ -68,19 +87,14 @@ export function DownloadSection() {
         const paths = result.paths ?? [];
         setAuthorizedDirs(paths);
         if (!adoptIfEmpty || paths.length === 0) return;
-        let adopted = false;
-        setConfig((prev) => {
-          if (prev.local_download.dir.trim()) return prev;
-          adopted = true;
-          return {
-            ...prev,
-            local_download: { ...prev.local_download, dir: paths[0] },
-          };
-        });
-        if (adopted) {
-          void checkDirectory(paths[0]);
-          onAdoptDefaults();
-        }
+        // 已经有目录（手填或之前自动填过）就不再覆盖。
+        if (dirRef.current.trim()) return;
+        setConfig((prev) => ({
+          ...prev,
+          local_download: { ...prev.local_download, dir: paths[0] },
+        }));
+        void checkDirectory(paths[0]);
+        onAdoptDefaults();
       } catch (cause) {
         setAuthorizedDirs([]);
         setAuthorizedError(
@@ -98,6 +112,29 @@ export function DownloadSection() {
     checkSeq.current += 1;
     setCheckingDir(false);
     setDirCheck(null);
+  };
+
+  const commitConcurrency = () => {
+    const next = Number.parseInt(concurrencyText, 10);
+    if (!Number.isFinite(next)) {
+      setConcurrencyText(String(config.local_download.concurrency));
+      return;
+    }
+    const clamped = Math.min(8, Math.max(1, next));
+    setConcurrencyText(String(clamped));
+    updateLocalDownload("concurrency", clamped);
+  };
+
+  const commitMinFree = () => {
+    const raw = minFreeText.trim();
+    const next = raw === "" ? 0 : Number.parseInt(raw, 10);
+    if (!Number.isFinite(next)) {
+      setMinFreeText(String(config.local_download.min_free_gb));
+      return;
+    }
+    const clamped = Math.max(0, next);
+    setMinFreeText(String(clamped));
+    updateLocalDownload("min_free_gb", clamped);
   };
 
   const pickDirectory = async () => {
@@ -141,7 +178,7 @@ export function DownloadSection() {
                 variant="ghost"
                 size="sm"
                 className="h-6 px-1.5 text-[12px] hover:bg-danger-soft hover:text-danger"
-                onClick={() => void loadAuthorizedDirs()}
+                onClick={() => void loadAuthorizedDirs(true)}
               >
                 重试
               </Button>
@@ -253,17 +290,11 @@ export function DownloadSection() {
               type="number"
               min={1}
               max={8}
-              value={config.local_download.concurrency}
-              onChange={(event) => {
-                const raw = event.target.value.trim();
-                if (raw === "") {
-                  // 并发至少要 1，清空时回到最小值。
-                  updateLocalDownload("concurrency", 1);
-                  return;
-                }
-                const next = Number.parseInt(raw, 10);
-                if (!Number.isFinite(next)) return;
-                updateLocalDownload("concurrency", Math.min(8, Math.max(1, next)));
+              value={concurrencyText}
+              onChange={(event) => setConcurrencyText(event.target.value)}
+              onBlur={commitConcurrency}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
               }}
             />
           </Field>
@@ -273,20 +304,14 @@ export function DownloadSection() {
               id="download-min-free"
               type="number"
               min={0}
-              value={config.local_download.min_free_gb}
-              onChange={(event) => {
-                const raw = event.target.value.trim();
-                // 清空即 0：低于该值就跳过下载，0 表示不检查剩余空间。
-                if (raw === "") {
-                  updateLocalDownload("min_free_gb", 0);
-                  return;
-                }
-                const next = Number.parseInt(raw, 10);
-                if (!Number.isFinite(next)) return;
-                updateLocalDownload("min_free_gb", Math.max(0, next));
+              value={minFreeText}
+              onChange={(event) => setMinFreeText(event.target.value)}
+              onBlur={commitMinFree}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
               }}
             />
-            <FieldDescription>低于该值时跳过下载</FieldDescription>
+            <FieldDescription>低于该值时跳过下载，填 0 表示不检查</FieldDescription>
           </Field>
         </div>
       </div>

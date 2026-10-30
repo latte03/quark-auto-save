@@ -42,13 +42,14 @@ export function useDownloadQueue() {
   ).length;
 
   // 只接受最新一次请求的结果，避免慢响应把新状态（如暂停/继续）覆盖回去；
-  // 请求失败时保留上一次的队列，不要让界面上的下载凭空消失。
+  // 请求失败或被更新请求取代时返回 null，保留上一次的队列。
   const load = useCallback(async () => {
     const requestId = ++requestSeq.current;
     try {
       const result = await getDownloads();
+      if (requestId !== requestSeq.current) return null;
       const next = result.jobs ?? [];
-      if (requestId === requestSeq.current) setJobs(next);
+      setJobs(next);
       return next;
     } catch {
       return null;
@@ -69,6 +70,8 @@ export function useDownloadQueue() {
     void tick();
     return () => {
       stopped = true;
+      // 卸载后仍在飞的请求不再落状态。
+      requestSeq.current += 1;
       window.clearTimeout(timer);
     };
   }, [load]);

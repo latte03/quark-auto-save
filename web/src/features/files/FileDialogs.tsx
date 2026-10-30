@@ -40,7 +40,7 @@ export function FileDialogs({
       <Dialog
         open={Boolean(renameTarget)}
         onOpenChange={(open) => {
-          if (!open && !busy) closeRename();
+          if (!open) closeRename();
         }}
       >
         <DialogContent className="w-[min(440px,calc(100vw-2rem))]">
@@ -63,7 +63,7 @@ export function FileDialogs({
             />
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" size="sm" disabled={busy} onClick={closeRename}>
+            <Button variant="secondary" size="sm" onClick={closeRename}>
               取消
             </Button>
             <Button size="sm" disabled={busy} onClick={() => void submitRename()}>
@@ -77,7 +77,7 @@ export function FileDialogs({
       <Dialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
-          if (!open && !busy) closeDelete();
+          if (!open) closeDelete();
         }}
       >
         <DialogContent className="w-[min(420px,calc(100vw-2rem))]">
@@ -94,7 +94,7 @@ export function FileDialogs({
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="secondary" size="sm" disabled={busy} onClick={closeDelete}>
+            <Button variant="secondary" size="sm" onClick={closeDelete}>
               取消
             </Button>
             <Button
@@ -110,12 +110,7 @@ export function FileDialogs({
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={mkdirOpen}
-        onOpenChange={(open) => {
-          if (!busy) setMkdirOpen(open);
-        }}
-      >
+      <Dialog open={mkdirOpen} onOpenChange={setMkdirOpen}>
         <DialogContent className="w-[min(440px,calc(100vw-2rem))]">
           <DialogHeader>
             <DialogTitle>新建文件夹</DialogTitle>
@@ -138,7 +133,6 @@ export function FileDialogs({
             <Button
               variant="secondary"
               size="sm"
-              disabled={busy}
               onClick={() => setMkdirOpen(false)}
             >
               取消

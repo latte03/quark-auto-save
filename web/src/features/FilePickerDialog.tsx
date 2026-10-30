@@ -27,6 +27,7 @@ import {
 } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { useToast } from "../components/ToastProvider";
+import { joinDirPath, normalizeDirPath } from "../lib/path";
 
 type FilePickerDialogProps = {
   open: boolean;
@@ -36,15 +37,8 @@ type FilePickerDialogProps = {
   onPickPath: (path: string) => void;
 };
 
-function normalizePath(raw: string) {
-  const trimmed = raw.trim();
-  const absolute = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  const collapsed = absolute.replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
-  return collapsed || "/";
-}
-
-function childPath(base: string, name: string) {
-  return base === "/" ? `/${name}` : `${base}/${name}`;
+function toCloudPath(raw: string) {
+  return normalizeDirPath(raw) || "/";
 }
 
 export function FilePickerDialog({
@@ -55,7 +49,7 @@ export function FilePickerDialog({
   onPickPath,
 }: FilePickerDialogProps) {
   const notify = useToast();
-  const initialPath = normalizePath(task.savepath || "/");
+  const initialPath = toCloudPath(task.savepath || "/");
   const [path, setPath] = useState(initialPath);
   const [manualPath, setManualPath] = useState(initialPath);
   // 每次打开都从任务里的保存路径起步；在渲染期同步，避免先用上一个目录发一次请求。
@@ -213,7 +207,7 @@ export function FilePickerDialog({
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => navigate(normalizePath(manualPath))}
+                onClick={() => navigate(toCloudPath(manualPath))}
               >
                 前往
               </Button>
@@ -253,7 +247,7 @@ export function FilePickerDialog({
                       />
                       <button
                         className="min-w-0 flex-1 truncate text-left text-[13px] text-ink hover:underline"
-                        onClick={() => navigate(childPath(path, entry.name))}
+                        onClick={() => navigate(joinDirPath(path, entry.name))}
                       >
                         {entry.name}
                       </button>
@@ -263,7 +257,7 @@ export function FilePickerDialog({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onPickPath(childPath(path, entry.name))}
+                        onClick={() => onPickPath(joinDirPath(path, entry.name))}
                       >
                         选择
                       </Button>

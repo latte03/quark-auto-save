@@ -25,6 +25,7 @@ export function useRunController({
 }: RunControllerParams) {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [logLoading, setLogLoading] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [dryRun, setDryRun] = useState(false);
   const [latestRun, setLatestRun] = useState<RunView | null>(null);
@@ -55,6 +56,7 @@ export function useRunController({
       return false;
     }
     runningRef.current = true;
+    setRunning(true);
     return true;
   }, [notify]);
 
@@ -126,6 +128,7 @@ export function useRunController({
     closeStream();
     releaseRun();
     setLog([]);
+    setLogLoading(false);
     setLogOpen(false);
     setDryRun(false);
     setLatestRun(null);
@@ -207,23 +210,28 @@ export function useRunController({
   const openLog = useCallback(async () => {
     setLogOpen(true);
     if (runningRef.current) return;
+    setLog([]);
+    setLogLoading(true);
     try {
       const run = await getLatestRun();
+      if (runningRef.current) return;
       setLatestRun(run);
       setDryRun(Boolean(run?.dry));
-      if (!run) {
-        setLog([]);
-        return;
-      }
+      if (!run) return;
       if (!run.done) {
         attach(run.id);
         return;
       }
       // 已结束的运行没有 SSE 流可订阅，直接读落盘日志。
       const { lines } = await getRunLog(run.id);
-      setLog(lines);
+      // 期间可能又起了新运行并接管了日志，别把它的输出覆盖掉。
+      if (!runningRef.current) setLog(lines);
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "读取运行记录失败", "error");
+      if (!runningRef.current) {
+        notify(cause instanceof Error ? cause.message : "读取运行记录失败", "error");
+      }
+    } finally {
+      setLogLoading(false);
     }
   }, [attach, notify]);
 
@@ -237,6 +245,7 @@ export function useRunController({
   return {
     running,
     log,
+    logLoading,
     logOpen,
     setLogOpen,
     dryRun,
