@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Play, Repeat } from "lucide-react";
 import { weekLabels } from "../../lib/mock";
 import { cn } from "../../lib/utils";
 import { DatePicker } from "../../components/ui/date-picker";
@@ -32,10 +32,18 @@ export function ScheduleSection({ open }: { open: boolean }) {
           }
         >
           <TabsList className="w-full">
-            <TabsTrigger value="scheduled" className="text-[12px]">
+            <TabsTrigger
+              value="scheduled"
+              className="text-[12px]"
+              icon={<Repeat />}
+            >
               定时循环
             </TabsTrigger>
-            <TabsTrigger value="once" className="text-[12px]">
+            <TabsTrigger
+              value="once"
+              className="text-[12px]"
+              icon={<Play />}
+            >
               仅执行一次
             </TabsTrigger>
           </TabsList>

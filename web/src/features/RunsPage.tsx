@@ -144,10 +144,15 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] border-collapse text-left" aria-label="运行日志">
+            <table
+              className="w-full min-w-[620px] table-fixed border-collapse text-left"
+              aria-label="运行日志"
+            >
               <thead>
                 <tr className="border-b border-line bg-line-soft/35">
-                  <th className="h-8 px-3 text-[12px] font-medium text-muted-ink">开始</th>
+                  <th className="h-8 w-[132px] px-3 text-[12px] font-medium text-muted-ink">
+                    开始
+                  </th>
                   <th className="h-8 px-3 text-[12px] font-medium text-muted-ink">任务</th>
                   <th className="h-8 w-[90px] px-3 text-[12px] font-medium text-muted-ink">结果</th>
                   <th className="h-8 w-[80px] px-3 text-right text-[12px] font-medium text-muted-ink">
@@ -156,7 +161,7 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
                   <th className="h-8 w-[80px] px-3 text-right text-[12px] font-medium text-muted-ink">
                     时长
                   </th>
-                  <th className="h-8 w-[72px] px-3 text-right text-[12px] font-medium text-muted-ink">
+                  <th className="h-8 w-[96px] px-3 text-right text-[12px] font-medium text-muted-ink">
                     日志
                   </th>
                 </tr>
@@ -170,9 +175,9 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
                     <td className="whitespace-nowrap px-3 py-2 font-mono text-[12px] text-muted-ink">
                       {formatTime(run.started_at)}
                     </td>
-                    <td className="min-w-[140px] px-3 py-2">
+                    <td className="px-3 py-2">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-[13px] text-ink">{run.label}</span>
+                        <span className="min-w-0 truncate text-[13px] text-ink">{run.label}</span>
                         {run.dry ? <Badge variant="warn">试运行</Badge> : null}
                         {!run.done ? <Badge variant="info">运行中</Badge> : null}
                       </div>
@@ -196,12 +201,18 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="w-14"
+                        aria-label="查看运行日志"
+                        aria-busy={
+                          (logLoading && openRun?.id === run.id) || undefined
+                        }
                         onClick={() => void viewRun(run)}
                       >
                         {logLoading && openRun?.id === run.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : null}
-                        查看
+                        ) : (
+                          "查看"
+                        )}
                       </Button>
                     </td>
                   </tr>

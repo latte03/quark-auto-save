@@ -3,15 +3,12 @@ import {
   AnimatePresence,
   motion,
   useReducedMotion,
-  type Transition,
   type Variants,
 } from "motion/react"
 import { CheckIcon, ChevronDownIcon } from "lucide-react"
 import { cn } from "cn"
+import { EASE_OUT, MORPH } from "@/lib/ease"
 
-// The trigger and the panel are one surface: the panel inherits the trigger's
-// layoutId and grows out of it, so nothing ever detaches.
-const MORPH: Transition = { type: "spring", duration: 0.5, bounce: 0.22 }
 const ROW = "flex w-full min-w-0 items-center justify-between gap-1.5"
 const SIZE_CLASS = "py-2 pr-2 pl-2.5 text-sm"
 const HEIGHT_CLASS = {
@@ -22,7 +19,6 @@ const RADIUS_CLASS = {
   default: "rounded-lg",
   sm: "rounded-[min(var(--radius-md),10px)]",
 } as const
-const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1]
 const TYPEAHEAD_MS = 500
 
 // Rows blur in one after another, matching the Morph Select surface reveal.

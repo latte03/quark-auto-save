@@ -1,7 +1,14 @@
+import { Monitor, Moon, Sun } from "lucide-react";
 import { PageSection } from "../../components/PageSection";
 import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { themeLabels, type ThemeMode } from "../../lib/theme";
 import { useSettings } from "./SettingsContext";
+
+const themeIcons = {
+  system: Monitor,
+  light: Sun,
+  dark: Moon,
+} as const;
 
 export function AppearanceSection() {
   const { theme, onThemeChange } = useSettings();
@@ -18,11 +25,19 @@ export function AppearanceSection() {
         className="max-w-[320px]"
       >
         <TabsList className="w-full">
-          {(Object.keys(themeLabels) as ThemeMode[]).map((mode) => (
-            <TabsTrigger key={mode} value={mode} className="text-[12px]">
-              {themeLabels[mode]}
-            </TabsTrigger>
-          ))}
+          {(Object.keys(themeLabels) as ThemeMode[]).map((mode) => {
+            const Icon = themeIcons[mode];
+            return (
+              <TabsTrigger
+                key={mode}
+                value={mode}
+                className="text-[12px]"
+                icon={<Icon />}
+              >
+                {themeLabels[mode]}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
       </Tabs>
     </PageSection>

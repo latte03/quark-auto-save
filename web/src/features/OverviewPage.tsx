@@ -14,6 +14,7 @@ import { PageSection } from "../components/PageSection";
 import { SummaryPanel, type Metric } from "../components/SummaryPanel";
 import { TaskTable } from "../components/TaskTable";
 import { TaskStatusBadge } from "../components/TaskStatusBadge";
+import { AnimatedNumber } from "../components/ui/animated-number";
 import { Button } from "../components/ui/button";
 
 type OverviewPageProps = {
@@ -178,13 +179,15 @@ export function OverviewPage({
             <div>
               <div className="text-[12px] text-muted-ink">新增文件</div>
               <div className="mt-0.5 text-[14px] font-semibold tabular-nums">
-                {latestRun?.saved_total ?? 0}
+                <AnimatedNumber value={latestRun?.saved_total ?? 0} />
               </div>
             </div>
             <div>
               <div className="text-[12px] text-muted-ink">有更新任务</div>
               <div className="mt-0.5 text-[14px] font-semibold tabular-nums">
-                {latestRun?.tasks ? Object.keys(latestRun.tasks).length : 0}
+                <AnimatedNumber
+                  value={latestRun?.tasks ? Object.keys(latestRun.tasks).length : 0}
+                />
               </div>
             </div>
             <div>

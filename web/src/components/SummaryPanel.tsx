@@ -1,4 +1,5 @@
 import { cn } from "../lib/utils";
+import { AnimatedNumber } from "./ui/animated-number";
 
 export type Metric = {
   label: string;
@@ -52,7 +53,11 @@ export function SummaryPanel({
                   toneText[metric.tone ?? "default"],
                 )}
               >
-                {metric.value}
+                {typeof metric.value === "number" ? (
+                  <AnimatedNumber value={metric.value} />
+                ) : (
+                  metric.value
+                )}
               </span>
               {metric.unit ? (
                 <span className="font-mono text-[12px] text-subtle">

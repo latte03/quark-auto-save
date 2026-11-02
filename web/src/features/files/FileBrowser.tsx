@@ -1,4 +1,12 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowUp,
   ChevronRight,
@@ -15,6 +23,11 @@ import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "../../components/ui/tooltip";
 import { useToast } from "../../components/ToastProvider";
 import { FileDialogs } from "./FileDialogs";
 import { categoryLabels, joinPath, parentPath } from "./paths";
@@ -22,6 +35,60 @@ import { useFileActions } from "./useFileActions";
 
 const REFRESH_ATTEMPTS = 6;
 const REFRESH_INTERVAL_MS = 250;
+
+function FileName({
+  name,
+  isDir,
+  onOpen,
+}: {
+  name: string;
+  isDir: boolean;
+  onOpen: () => void;
+}) {
+  const ref = useRef<HTMLElement | null>(null);
+  const [truncated, setTruncated] = useState(false);
+
+  const setRef = useCallback((element: HTMLElement | null) => {
+    ref.current = element;
+  }, []);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const update = () => {
+      setTruncated(element.scrollWidth > element.clientWidth + 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [name]);
+
+  const className =
+    "min-w-0 flex-1 truncate text-left text-[13px] " +
+    (isDir
+      ? "font-medium text-ink hover:text-brand-ink hover:underline"
+      : "text-ink");
+
+  return (
+    <Tooltip disabled={!truncated}>
+      <TooltipTrigger
+        render={
+          isDir ? (
+            <button ref={setRef} type="button" onClick={onOpen} className={className}>
+              {name}
+            </button>
+          ) : (
+            <span ref={setRef} className={className}>
+              {name}
+            </span>
+          )
+        }
+      />
+      <TooltipContent className="max-w-md break-all">{name}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function FileBrowser() {
   const notify = useToast();
@@ -192,7 +259,10 @@ export function FileBrowser() {
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-left" aria-label="网盘文件">
+          <table
+            className="w-full min-w-[560px] table-fixed border-collapse text-left"
+            aria-label="网盘文件"
+          >
             <thead>
               <tr className="border-b border-line bg-line-soft/35">
                 <th className="h-8 px-3 text-[12px] font-medium text-muted-ink">名称</th>
@@ -215,23 +285,18 @@ export function FileBrowser() {
                     key={entry.fid || fullPath}
                     className="group border-b border-line-soft transition-colors last:border-b-0 hover:bg-brand-soft/25"
                   >
-                    <td className="min-w-[160px] px-3 py-2">
+                    <td className="px-3 py-2">
                       <div className="flex min-w-0 items-center gap-2">
                         {entry.is_dir ? (
                           <Folder className="h-4 w-4 shrink-0 text-amber-500" strokeWidth={1.6} />
                         ) : (
                           <FileText className="h-4 w-4 shrink-0 text-subtle" strokeWidth={1.6} />
                         )}
-                        {entry.is_dir ? (
-                          <button
-                            onClick={() => setPath(fullPath)}
-                            className="truncate text-left text-[13px] font-medium text-ink hover:text-brand-ink hover:underline"
-                          >
-                            {entry.name}
-                          </button>
-                        ) : (
-                          <span className="truncate text-[13px] text-ink">{entry.name}</span>
-                        )}
+                        <FileName
+                          name={entry.name}
+                          isDir={entry.is_dir}
+                          onOpen={() => setPath(fullPath)}
+                        />
                       </div>
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-ink">
