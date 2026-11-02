@@ -46,6 +46,7 @@ export function NotifySection() {
   return (
     <PageSection
       id="settings-notify"
+      className="overflow-visible"
       title="通知"
       description="任务结束、签到结果与失效提醒统一汇总；支持多渠道并行推送。"
       action={
