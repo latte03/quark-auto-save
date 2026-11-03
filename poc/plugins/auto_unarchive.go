@@ -3,6 +3,7 @@ package plugins
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"regexp"
 	"time"
 
@@ -47,6 +48,24 @@ func (p *AutoUnarchive) TaskDefaults() map[string]any {
 
 var reArchiveExt = regexp.MustCompile(`(?i)\.(zip|rar|7z)$`)
 
+// archiveDirPath returns the normalized cloud directory that holds the archive,
+// or "" when the archive sits at an unusable location (no path, or disk root).
+// Cloud paths are always "/"-separated, so the path package is the right tool.
+func archiveDirPath(node *quark.TreeNode) string {
+	if node == nil || node.Data.Path == "" {
+		return ""
+	}
+	dir := path.Dir(node.Data.Path)
+	if dir == "." || dir == "/" || dir == "" {
+		return ""
+	}
+	dir = quark.NormalizePath(dir)
+	if dir == "/" || dir == "." || dir == "/." {
+		return ""
+	}
+	return dir
+}
+
 func (p *AutoUnarchive) Run(task *quark.Task, env *quark.PluginEnv) error {
 	config := autoUnarchiveTaskConfig{AutoClean: true}
 	if err := decodeTaskConfig(task.AdditionSection(p.Name()), &config); err != nil {
@@ -58,11 +77,7 @@ func (p *AutoUnarchive) Run(task *quark.Task, env *quark.PluginEnv) error {
 	if env == nil || env.Tree == nil || env.Account == nil {
 		return nil
 	}
-	savepath := quark.NormalizePath(task.SavePath)
-	target := env.SavepathFID[savepath]
-	if target == "" {
-		return nil
-	}
+	rootTarget := env.SavepathFID[quark.NormalizePath(task.SavePath)]
 	var archives []*quark.TreeNode
 	for _, node := range env.Tree.AllNodes() {
 		if node.Data.IsDir || !reArchiveExt.MatchString(node.Name) {
@@ -75,12 +90,35 @@ func (p *AutoUnarchive) Run(task *quark.Task, env *quark.PluginEnv) error {
 	}
 	p.deps.logf("📦 [%s] 共有 %d 个压缩包，逐个解压", task.TaskName, len(archives))
 
-	var moveFIDs, cleanFIDs []string
+	var cleanFIDs []string
+	// Files are grouped per destination so that every directory gets a single
+	// MoveFiles call; moveTargets keeps first-seen order for determinism.
+	var moveTargets []string
+	moveFiles := make(map[string][]string)
 	for _, node := range archives {
 		zipFID := node.Data.FID
 		zipName := node.Data.FileNameRe
 		if zipName == "" {
 			zipName = node.Data.FileName
+		}
+		dirPath := archiveDirPath(node)
+		target := ""
+		if dirPath != "" {
+			target = env.SavepathFID[dirPath]
+		}
+		if target == "" {
+			if rootTarget != "" {
+				if dirPath != "" {
+					p.deps.logf("  ⚠️ 找不到 %s 的目录 fid，退回任务根目录", dirPath)
+				} else {
+					p.deps.logf("  ⚠️ 压缩包 %s 没有可用的所在目录，退回任务根目录", zipName)
+				}
+			}
+			target = rootTarget
+		}
+		if target == "" {
+			p.deps.logf("  ⚠️ 跳过压缩包: %s 找不到目标目录 fid", zipName)
+			continue
 		}
 		mainName, _ := splitExt(zipName)
 		taskID, err := env.Account.Unarchive(zipFID, target)
@@ -88,7 +126,11 @@ func (p *AutoUnarchive) Run(task *quark.Task, env *quark.PluginEnv) error {
 			p.deps.logf("  ❌ 提交失败: %s (%v)", zipName, err)
 			continue
 		}
-		p.deps.logf("  ▶️ 提交解压: %s", zipName)
+		if dirPath != "" && target != rootTarget {
+			p.deps.logf("  ▶️ 提交解压: %s → %s", zipName, dirPath)
+		} else {
+			p.deps.logf("  ▶️ 提交解压: %s", zipName)
+		}
 		result, err := env.Account.WaitTask(taskID, 30*time.Minute)
 		if err != nil {
 			p.deps.logf("  ⚠️ 任务异常: %s %v", zipName, err)
@@ -121,7 +163,10 @@ func (p *AutoUnarchive) Run(task *quark.Task, env *quark.PluginEnv) error {
 			continue
 		}
 		for _, item := range items {
-			moveFIDs = append(moveFIDs, item.FID)
+			if _, seen := moveFiles[target]; !seen {
+				moveTargets = append(moveTargets, target)
+			}
+			moveFiles[target] = append(moveFiles[target], item.FID)
 		}
 		if len(items) == 1 {
 			item := items[0]
@@ -132,15 +177,28 @@ func (p *AutoUnarchive) Run(task *quark.Task, env *quark.PluginEnv) error {
 			}
 		}
 	}
-	if len(moveFIDs) == 0 {
+	total := 0
+	for _, target := range moveTargets {
+		total += len(moveFiles[target])
+	}
+	if total == 0 {
 		return nil
 	}
-	p.deps.logf("🚀 任务全部解压完成，开始批量移动 %d 个文件...", len(moveFIDs))
-	if err := env.Account.MoveFiles(moveFIDs, target); err != nil {
-		return nil
+	p.deps.logf("🚀 任务全部解压完成，开始批量移动 %d 个文件...", total)
+	for _, target := range moveTargets {
+		fids := moveFiles[target]
+		if len(fids) == 0 {
+			continue
+		}
+		if err := env.Account.MoveFiles(fids, target); err != nil {
+			p.deps.logf("  ❌ 移动 %d 个文件失败: %v", len(fids), err)
+			return nil
+		}
 	}
 	if len(cleanFIDs) > 0 {
-		if _, err := env.Account.Delete(cleanFIDs); err == nil {
+		if _, err := env.Account.Delete(cleanFIDs); err != nil {
+			p.deps.logf("  ⚠️ 批量清理失败: %v", err)
+		} else {
 			p.deps.logf("🧹 批量清理完成")
 		}
 	}

@@ -140,6 +140,9 @@ func TestAutoUnarchiveMovesAndCleans(t *testing.T) {
 	if err := plugin.Run(task, env); err != nil {
 		t.Fatal(err)
 	}
+	if len(account.unarchives) != 1 || account.unarchives[0] != (unarchiveCall{"zip1", "target"}) {
+		t.Fatalf("unarchives = %#v", account.unarchives)
+	}
 	if len(account.renames) != 2 || account.renames[0] != (renameCall{"sub1", "show.zip"}) || account.renames[1] != (renameCall{"x1", "show.mkv"}) {
 		t.Fatalf("renames = %#v", account.renames)
 	}
@@ -201,6 +204,129 @@ func TestAutoUnarchiveTaskGate(t *testing.T) {
 	}
 	if len(account.moves) != 1 {
 		t.Fatalf("global_enable did not run: %#v", account)
+	}
+}
+
+// archiveTreeInSubdir models an update_subdir transfer: the archive lands in
+// /tv/sub while the task root stays /tv.
+func archiveTreeInSubdir() *quark.Tree {
+	tree := quark.NewTree()
+	tree.SetRoot(&quark.TreeNode{ID: "target", Name: "/tv", Data: quark.NodeData{IsDir: true}})
+	sub := tree.Add(tree.Root(), "📁sub", "sub", quark.NodeData{IsDir: true, FID: "sub", Path: "/tv/sub"})
+	tree.Add(sub, "📦show.zip", "zip1", quark.NodeData{
+		FileName: "show.zip", FileNameRe: "show.zip", FID: "zip1", Path: "/tv/sub/show.zip", ObjCategory: "archive",
+	})
+	return tree
+}
+
+func TestAutoUnarchiveUsesArchiveDirectory(t *testing.T) {
+	deps, logs := testDeps(t)
+	plugin := NewAutoUnarchive(nil, deps)
+	account := unarchiveAccount()
+	env := &quark.PluginEnv{
+		Account:     account,
+		Tree:        archiveTreeInSubdir(),
+		SavepathFID: map[string]string{"/tv": "root", "/tv/sub": "subdir"},
+		Log:         deps.Log,
+	}
+	task := pluginTask(t, "/tv", `{"auto_unarchive":{"enable":true}}`)
+	if err := plugin.Run(task, env); err != nil {
+		t.Fatal(err)
+	}
+	if len(account.unarchives) != 1 || account.unarchives[0] != (unarchiveCall{"zip1", "subdir"}) {
+		t.Fatalf("unarchives = %#v", account.unarchives)
+	}
+	if len(account.moves) != 1 || len(account.moves[0].FIDs) != 1 || account.moves[0].FIDs[0] != "x1" || account.moves[0].To != "subdir" {
+		t.Fatalf("moves = %#v", account.moves)
+	}
+	for _, move := range account.moves {
+		if move.To == "root" {
+			t.Fatalf("moved into task root: %#v", account.moves)
+		}
+	}
+	if len(account.deletes) != 1 || len(account.deletes[0]) != 1 || account.deletes[0][0] != "zip1" {
+		t.Fatalf("deletes = %#v", account.deletes)
+	}
+	if !hasLog(*logs, "提交解压: show.zip → /tv/sub") {
+		t.Fatalf("logs = %v", *logs)
+	}
+}
+
+func TestAutoUnarchiveGroupsMovesPerDirectory(t *testing.T) {
+	deps, logs := testDeps(t)
+	plugin := NewAutoUnarchive(nil, deps)
+	tree := quark.NewTree()
+	tree.SetRoot(&quark.TreeNode{ID: "target", Name: "/tv", Data: quark.NodeData{IsDir: true}})
+	tree.Add(tree.Root(), "📦a.zip", "zipA", quark.NodeData{
+		FileName: "a.zip", FileNameRe: "a.zip", FID: "zipA", Path: "/tv/a.zip", ObjCategory: "archive",
+	})
+	sub := tree.Add(tree.Root(), "📁sub", "sub", quark.NodeData{IsDir: true, FID: "sub", Path: "/tv/sub"})
+	tree.Add(sub, "📦b.zip", "zipB", quark.NodeData{
+		FileName: "b.zip", FileNameRe: "b.zip", FID: "zipB", Path: "/tv/sub/b.zip", ObjCategory: "archive",
+	})
+	account := &fakeAccount{
+		unarchiveTaskID: "task-9",
+		unarchiveResult: quark.TaskResult{UnarchiveList: []quark.ShareFile{
+			{FID: "subA", FileName: "a"},
+			{FID: "subB", FileName: "b"},
+		}},
+		dirs: map[string][]quark.ShareFile{
+			"subA": {{FID: "xa", FileName: "a.mkv"}},
+			"subB": {{FID: "xb", FileName: "b.mkv"}},
+		},
+	}
+	env := &quark.PluginEnv{
+		Account:     account,
+		Tree:        tree,
+		SavepathFID: map[string]string{"/tv": "root", "/tv/sub": "subdir"},
+		Log:         deps.Log,
+	}
+	task := pluginTask(t, "/tv", `{"auto_unarchive":{"enable":true}}`)
+	if err := plugin.Run(task, env); err != nil {
+		t.Fatal(err)
+	}
+	if len(account.unarchives) != 2 || account.unarchives[0] != (unarchiveCall{"zipA", "root"}) || account.unarchives[1] != (unarchiveCall{"zipB", "subdir"}) {
+		t.Fatalf("unarchives = %#v", account.unarchives)
+	}
+	if len(account.moves) != 2 {
+		t.Fatalf("moves = %#v", account.moves)
+	}
+	if account.moves[0].To != "root" || len(account.moves[0].FIDs) != 1 || account.moves[0].FIDs[0] != "xa" {
+		t.Fatalf("first move = %#v", account.moves[0])
+	}
+	if account.moves[1].To != "subdir" || len(account.moves[1].FIDs) != 1 || account.moves[1].FIDs[0] != "xb" {
+		t.Fatalf("second move = %#v", account.moves[1])
+	}
+	if len(account.deletes) != 1 || len(account.deletes[0]) != 2 || account.deletes[0][0] != "zipA" || account.deletes[0][1] != "zipB" {
+		t.Fatalf("deletes = %#v", account.deletes)
+	}
+	if !hasLog(*logs, "批量移动 2 个文件") || !hasLog(*logs, "批量清理完成") {
+		t.Fatalf("logs = %v", *logs)
+	}
+}
+
+func TestAutoUnarchiveFallsBackToTaskRoot(t *testing.T) {
+	deps, logs := testDeps(t)
+	plugin := NewAutoUnarchive(nil, deps)
+	account := unarchiveAccount()
+	env := &quark.PluginEnv{
+		Account:     account,
+		Tree:        archiveTreeInSubdir(),
+		SavepathFID: map[string]string{"/tv": "root"},
+		Log:         deps.Log,
+	}
+	task := pluginTask(t, "/tv", `{"auto_unarchive":{"enable":true}}`)
+	if err := plugin.Run(task, env); err != nil {
+		t.Fatal(err)
+	}
+	if len(account.unarchives) != 1 || account.unarchives[0] != (unarchiveCall{"zip1", "root"}) {
+		t.Fatalf("unarchives = %#v", account.unarchives)
+	}
+	if len(account.moves) != 1 || account.moves[0].To != "root" {
+		t.Fatalf("moves = %#v", account.moves)
+	}
+	if !hasLog(*logs, "找不到 /tv/sub 的目录 fid，退回任务根目录") {
+		t.Fatalf("logs = %v", *logs)
 	}
 }
 

@@ -16,6 +16,11 @@ type moveCall struct {
 	To   string
 }
 
+type unarchiveCall struct {
+	FID string
+	To  string
+}
+
 type fakeAccount struct {
 	dirs            map[string][]quark.ShareFile
 	dirErr          error
@@ -27,6 +32,7 @@ type fakeAccount struct {
 	waitErr         error
 	downloaded      []string
 	moves           []moveCall
+	unarchives      []unarchiveCall
 	deletes         [][]string
 	renames         []renameCall
 }
@@ -49,6 +55,7 @@ func (f *fakeAccount) MoveFiles(fids []string, toPdirFID string) error {
 }
 
 func (f *fakeAccount) Unarchive(fid, toPdirFID string) (string, error) {
+	f.unarchives = append(f.unarchives, unarchiveCall{FID: fid, To: toPdirFID})
 	if f.unarchiveErr != nil {
 		return "", f.unarchiveErr
 	}
