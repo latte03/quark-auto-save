@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { pluginLabels } from "../../lib/mock";
 import { cn } from "../../lib/utils";
@@ -14,6 +14,28 @@ import {
 import { sectionTitle, pluginEnabled } from "./constants";
 import { PluginFields } from "./fields";
 import { useTaskDraftContext } from "./TaskDraftContext";
+
+function Collapsible({
+  open,
+  children,
+}: {
+  open: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      aria-hidden={!open}
+      className={cn(
+        "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+        open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+      )}
+    >
+      <div inert={!open} className="min-h-0 overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function PluginsSection({ open }: { open: boolean }) {
   const { draft, updateAddition, pluginDefaults } = useTaskDraftContext();
@@ -45,7 +67,7 @@ export function PluginsSection({ open }: { open: boolean }) {
 
   return (
     <>
-      <section className="space-y-2 border-t border-line pt-3.5">
+      <section className="border-t border-line pt-3.5">
         <button
           type="button"
           aria-expanded={showPlugins}
@@ -63,8 +85,8 @@ export function PluginsSection({ open }: { open: boolean }) {
             />
           </span>
         </button>
-        {showPlugins ? (
-          <div className="space-y-2">
+        <Collapsible open={showPlugins}>
+          <div className="space-y-2 pt-2">
             {pluginKeys.map((plugin) => {
               const values = {
                 ...(pluginDefaults[plugin] ?? {}),
@@ -100,7 +122,7 @@ export function PluginsSection({ open }: { open: boolean }) {
                       )}
                     />
                   </button>
-                  {isOpen ? (
+                  <Collapsible open={isOpen}>
                     <div className="border-t border-line-soft px-3 py-2">
                       <PluginFields
                         values={values}
@@ -109,12 +131,12 @@ export function PluginsSection({ open }: { open: boolean }) {
                         }
                       />
                     </div>
-                  ) : null}
+                  </Collapsible>
                 </div>
               );
             })}
           </div>
-        ) : null}
+        </Collapsible>
       </section>
 
       <section className="border-t border-line pt-3.5">
@@ -132,7 +154,7 @@ export function PluginsSection({ open }: { open: boolean }) {
             )}
           />
         </button>
-        {showRaw ? (
+        <Collapsible open={showRaw}>
           <CodeBlock className="mt-2">
             <CodeBlockHeader>
               <CodeBlockTitle>插件覆盖项</CodeBlockTitle>
@@ -144,7 +166,7 @@ export function PluginsSection({ open }: { open: boolean }) {
               {rawJson}
             </CodeBlockContent>
           </CodeBlock>
-        ) : null}
+        </Collapsible>
       </section>
     </>
   );
