@@ -1,5 +1,5 @@
 appname=qas
-version=0.3.7
+version=0.3.8
 display_name=QAS 控制台
 desc=自托管夸克自动转存控制台（Go + React）。
 source=thirdparty
@@ -15,4 +15,4 @@ desktop_applaunchname=qas.main
 service_port=8710
 checkport=true
 ctl_stop=true
-changelog=文件页新增目录缓存与 Finder 分栏视图，逐级浏览、选中预览、按所在目录重命名/删除，前进后退不再重复请求；下拉框改为触发器长成面板的 Morph 动效；Tab 增加滑动指示与选中图标，概览数字滚动；运行记录与文件列表收敛列宽，长文件名省略并在悬停时显示全名；云解压改为按压缩包所在目录落盘并回移，追更子目录不再落到任务根目录。
+changelog=文件页分栏视图支持右键菜单，可直接编辑或删除文件、文件夹，菜单为磨砂浮层并带缩放淡入；下拉框收起面板后保持圆角，日期面板与触发器等宽；任务插件选项分组展开增加高度动画。
