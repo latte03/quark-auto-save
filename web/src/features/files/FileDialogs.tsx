@@ -13,19 +13,15 @@ import { Input } from "../../components/ui/input";
 import { joinPath } from "./paths";
 import type { FileActions } from "./useFileActions";
 
-export function FileDialogs({
-  path,
-  actions,
-}: {
-  path: string;
-  actions: FileActions;
-}) {
+export function FileDialogs({ actions }: { actions: FileActions }) {
   const {
     renameTarget,
+    renamePath,
     closeRename,
     deleteTarget,
     closeDelete,
     mkdirOpen,
+    mkdirPath,
     setMkdirOpen,
     nameInput,
     setNameInput,
@@ -47,7 +43,7 @@ export function FileDialogs({
           <DialogHeader>
             <DialogTitle>重命名</DialogTitle>
             <DialogDescription>
-              当前路径：{renameTarget ? joinPath(path, renameTarget.name) : "—"}
+              当前路径：{renameTarget ? joinPath(renamePath, renameTarget.name) : "—"}
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -114,7 +110,7 @@ export function FileDialogs({
         <DialogContent className="w-[min(440px,calc(100vw-2rem))]">
           <DialogHeader>
             <DialogTitle>新建文件夹</DialogTitle>
-            <DialogDescription>创建在 {path}</DialogDescription>
+            <DialogDescription>创建在 {mkdirPath}</DialogDescription>
           </DialogHeader>
           <DialogBody>
             <Input

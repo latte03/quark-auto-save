@@ -1,8 +1,6 @@
 import {
   Fragment,
-  useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -10,14 +8,16 @@ import {
 import {
   ArrowUp,
   ChevronRight,
+  Columns3,
   FileText,
   Folder,
   FolderPlus,
+  List,
   Pencil,
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { browse, type BrowseEntry } from "../../lib/api";
+import type { BrowseEntry } from "../../lib/api";
 import { formatBytes } from "../../lib/mock";
 import { cn } from "../../lib/utils";
 import { EmptyState } from "../../components/EmptyState";
@@ -29,138 +29,119 @@ import {
   TooltipTrigger,
 } from "../../components/ui/tooltip";
 import { useToast } from "../../components/ToastProvider";
+import { ColumnBrowser, type SelectedFile } from "./ColumnBrowser";
 import { FileDialogs } from "./FileDialogs";
+import { FileName } from "./FileName";
 import { categoryLabels, joinPath, parentPath } from "./paths";
+import {
+  useDirectoryCache,
+  useDirectoryState,
+  type DirectoryCache,
+} from "./useDirectoryCache";
 import { useFileActions } from "./useFileActions";
 
-const REFRESH_ATTEMPTS = 6;
-const REFRESH_INTERVAL_MS = 250;
+type ViewMode = "list" | "columns";
 
-function FileName({
-  name,
-  isDir,
-  onOpen,
-}: {
-  name: string;
-  isDir: boolean;
-  onOpen: () => void;
-}) {
-  const ref = useRef<HTMLElement | null>(null);
-  const [truncated, setTruncated] = useState(false);
+const VIEW_KEY = "qas-files-view";
 
-  const setRef = useCallback((element: HTMLElement | null) => {
-    ref.current = element;
-  }, []);
-
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const update = () => {
-      setTruncated(element.scrollWidth > element.clientWidth + 1);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [name]);
-
-  const className =
-    "min-w-0 flex-1 truncate text-left text-[13px] " +
-    (isDir
-      ? "font-medium text-ink hover:text-brand-ink hover:underline"
-      : "text-ink");
-
-  return (
-    <Tooltip disabled={!truncated}>
-      <TooltipTrigger
-        render={
-          isDir ? (
-            <button ref={setRef} type="button" onClick={onOpen} className={className}>
-              {name}
-            </button>
-          ) : (
-            <span ref={setRef} className={className}>
-              {name}
-            </span>
-          )
-        }
-      />
-      <TooltipContent className="max-w-md break-all">{name}</TooltipContent>
-    </Tooltip>
-  );
+function readViewMode(): ViewMode {
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === "columns"
+      ? "columns"
+      : "list";
+  } catch {
+    return "list";
+  }
 }
 
-export function FileBrowser() {
-  const notify = useToast();
-  const [path, setPath] = useState("/");
-  const [entries, setEntries] = useState<BrowseEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  // 面包屑连点、刷新和改动后的轮询可能同时在飞，只认最新一次请求的结果。
-  const requestSeq = useRef(0);
+function saveViewMode(mode: ViewMode) {
+  try {
+    window.localStorage.setItem(VIEW_KEY, mode);
+  } catch {
+    // 隐私模式下写不进去，视图仍然可用。
+  }
+}
 
-  const load = useCallback(
-    async (target: string, until?: (list: BrowseEntry[]) => boolean) => {
-      const requestId = ++requestSeq.current;
-      setLoading(true);
-      setError("");
-      // Mutations poll with `until` and keep the current rows visible; plain
-      // navigation swaps the skeleton in so the old directory never lingers.
-      if (!until) setEntries([]);
-      try {
-        let result = await browse(target);
-        // Quark's directory listing can trail a write by a moment; poll a few
-        // times so create/rename/delete show up without a manual refresh.
-        for (
-          let attempt = 0;
-          attempt < REFRESH_ATTEMPTS && until && !until(result.entries);
-          attempt++
-        ) {
-          await new Promise((resolve) => setTimeout(resolve, REFRESH_INTERVAL_MS));
-          if (requestId !== requestSeq.current) return;
-          result = await browse(target);
-        }
-        if (requestId !== requestSeq.current) return;
-        setEntries(result.entries);
-        if (until && !until(result.entries)) {
-          notify("列表还没刷出这次改动，稍后手动刷新看看", "warn");
-        }
-      } catch (cause) {
-        if (requestId !== requestSeq.current) return;
-        const message = cause instanceof Error ? cause.message : "读取目录失败";
-        if (until) {
-          // 刷新失败不该把已经显示的文件清空，给个非阻塞提示即可。
-          notify(message, "warn");
-        } else {
-          setEntries([]);
-          setError(message);
-        }
-      } finally {
-        if (requestId === requestSeq.current) setLoading(false);
-      }
-    },
-    [notify],
-  );
+export function FileBrowser({
+  cache: sharedCache,
+}: {
+  cache?: DirectoryCache;
+} = {}) {
+  const notify = useToast();
+  const ownedCache = useDirectoryCache();
+  const cache = sharedCache ?? ownedCache;
+  const [mode, setMode] = useState<ViewMode>(readViewMode);
+  const [path, setPath] = useState("/");
+  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+  const dir = useDirectoryState(cache, path);
+  const errorSeen = useRef("");
 
   useEffect(() => {
-    void load(path);
-  }, [load, path]);
+    errorSeen.current = cache.get(path).error;
+  }, [cache, path]);
 
-  const actions = useFileActions(path, load);
+  useEffect(() => {
+    if (!dir.error) {
+      errorSeen.current = "";
+      return;
+    }
+    if (dir.entries.length === 0 || errorSeen.current === dir.error) return;
+    errorSeen.current = dir.error;
+    notify(dir.error, "warn");
+  }, [dir.entries.length, dir.error, notify]);
+
+  useEffect(() => {
+    void cache.ensure(path);
+  }, [cache, path]);
+
+  const actions = useFileActions(path, cache);
 
   const sorted = useMemo(
     () =>
-      [...entries].sort((a, b) => {
+      [...dir.entries].sort((a, b) => {
         if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
         return a.name.localeCompare(b.name, "zh");
       }),
-    [entries],
+    [dir.entries],
   );
 
   const segments = useMemo(
     () => (path === "/" ? [] : path.slice(1).split("/")),
     [path],
   );
+
+  const navigate = (target: string) => {
+    setSelectedFile(null);
+    setPath(target);
+  };
+
+  const changeMode = (next: ViewMode) => {
+    saveViewMode(next);
+    setMode(next);
+  };
+
+  const selectFile = (parent: string, entry: BrowseEntry) => {
+    setPath(parent);
+    setSelectedFile({ dir: parent, entry });
+  };
+
+  const handleRenamed = (from: string, to: string) => {
+    setSelectedFile(null);
+    setPath((current) =>
+      current === from || current.startsWith(`${from}/`)
+        ? `${to}${current.slice(from.length)}`
+        : current,
+    );
+  };
+
+  const handleDeleted = (removed: string) => {
+    setSelectedFile(null);
+    setPath((current) =>
+      current === removed || current.startsWith(`${removed}/`)
+        ? parentPath(removed)
+        : current,
+    );
+  };
 
   return (
     <section className="overflow-hidden rounded-panel bg-panel shadow-panel">
@@ -170,14 +151,14 @@ export function FileBrowser() {
             variant="ghost"
             size="icon-sm"
             aria-label="返回上级目录"
-            onClick={() => setPath(parentPath(path))}
+            onClick={() => navigate(parentPath(path))}
           >
             <ArrowUp className="h-3.5 w-3.5" />
           </Button>
         ) : null}
         <div className="flex min-w-0 flex-wrap items-center gap-0.5 text-[12px]">
           <button
-            onClick={() => setPath("/")}
+            onClick={() => navigate("/")}
             aria-current={path === "/" ? "page" : undefined}
             className={cn(
               "rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
@@ -193,7 +174,7 @@ export function FileBrowser() {
               <Fragment key={target}>
                 <ChevronRight className="h-3 w-3 shrink-0 text-subtle" />
                 <button
-                  onClick={() => setPath(target)}
+                  onClick={() => navigate(target)}
                   aria-current={current ? "page" : undefined}
                   className={cn(
                     "max-w-[220px] truncate rounded px-1.5 py-1 transition-colors hover:bg-line-soft",
@@ -210,36 +191,95 @@ export function FileBrowser() {
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           <span className="mr-1 font-mono text-[12px] text-subtle">
-            {loading ? "读取中" : `${sorted.length} 项`}
+            {dir.loading ? "读取中" : `${sorted.length} 项`}
           </span>
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label="刷新目录"
-            disabled={loading}
-            onClick={() => void load(path)}
+            disabled={dir.loading}
+            onClick={() => void cache.refresh(path)}
           >
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", dir.loading && "animate-spin")}
+            />
           </Button>
-          <Button variant="secondary" size="sm" onClick={actions.openMkdir}>
+          <div
+            role="group"
+            aria-label="视图切换"
+            className="flex items-center gap-0.5 rounded-[min(var(--radius-md),10px)] border border-line bg-panel p-0.5"
+          >
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant={mode === "list" ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    aria-label="列表视图"
+                    aria-pressed={mode === "list"}
+                    onClick={() => changeMode("list")}
+                  >
+                    <List className="h-3.5 w-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>列表</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant={mode === "columns" ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    aria-label="分栏视图"
+                    aria-pressed={mode === "columns"}
+                    onClick={() => changeMode("columns")}
+                  >
+                    <Columns3 className="h-3.5 w-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>分栏</TooltipContent>
+            </Tooltip>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => actions.openMkdir(path)}
+          >
             <FolderPlus className="h-3.5 w-3.5" />
             新建文件夹
           </Button>
         </div>
       </div>
 
-      {error ? (
+      {mode === "columns" ? (
+        <ColumnBrowser
+          path={path}
+          cache={cache}
+          actions={actions}
+          selectedFile={selectedFile}
+          onNavigate={navigate}
+          onSelectFile={selectFile}
+          onItemRenamed={handleRenamed}
+          onItemDeleted={handleDeleted}
+        />
+      ) : dir.error && sorted.length === 0 ? (
         <EmptyState
           icon={FileText}
           title="无法读取这个目录"
-          description={error}
+          description={dir.error}
           action={
-            <Button variant="secondary" size="sm" onClick={() => void load(path)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void cache.refresh(path)}
+            >
               重试
             </Button>
           }
         />
-      ) : loading && sorted.length === 0 ? (
+      ) : dir.updatedAt === 0 && sorted.length === 0 ? (
         <div aria-busy="true" aria-label="正在读取目录" className="divide-y divide-line-soft">
           {[46, 30, 38, 24, 52, 34, 42, 28].map((width, index) => (
             <div key={index} className="flex items-center gap-3 px-3 py-[9px]">
@@ -295,7 +335,7 @@ export function FileBrowser() {
                         <FileName
                           name={entry.name}
                           isDir={entry.is_dir}
-                          onOpen={() => setPath(fullPath)}
+                          onOpen={() => navigate(fullPath)}
                         />
                       </div>
                     </td>
@@ -322,7 +362,7 @@ export function FileBrowser() {
                           size="icon-sm"
                           className="text-danger hover:bg-danger-soft hover:text-danger"
                           aria-label={`删除 ${entry.name}`}
-                          onClick={() => actions.setDeleteTarget(entry)}
+                          onClick={() => actions.openDelete(entry)}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -336,7 +376,7 @@ export function FileBrowser() {
         </div>
       )}
 
-      <FileDialogs path={path} actions={actions} />
+      <FileDialogs actions={actions} />
     </section>
   );
 }
