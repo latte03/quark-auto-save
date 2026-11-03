@@ -61,7 +61,7 @@ jobs:
               exit 1
             fi
           fi
-          sha256sum "dist/qas_${version}_x86.fpk" > "dist/qas_${version}_x86.fpk.sha256"
+          (cd dist && sha256sum "qas_${version}_x86.fpk" > "qas_${version}_x86.fpk.sha256")
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
