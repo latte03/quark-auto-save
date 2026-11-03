@@ -12,6 +12,13 @@ import type { BrowseEntry } from "../../lib/api";
 import { formatBytes } from "../../lib/mock";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "../../components/ui/context-menu";
 import { Skeleton } from "../../components/ui/skeleton";
 import { TruncatedText } from "./FileName";
 import { categoryLabels, joinPath, parentPath } from "./paths";
@@ -63,14 +70,20 @@ function Column({
   path,
   cache,
   selectedName,
+  actions,
   onNavigate,
   onSelectFile,
+  onItemRenamed,
+  onItemDeleted,
 }: {
   path: string;
   cache: DirectoryCache;
   selectedName: string | null;
+  actions: FileActions;
   onNavigate: (target: string) => void;
   onSelectFile: (dir: string, entry: BrowseEntry) => void;
+  onItemRenamed: (from: string, to: string) => void;
+  onItemDeleted: (path: string) => void;
 }) {
   const state = useDirectoryState(cache, path);
   const entries = useMemo(() => sortEntries(state.entries), [state.entries]);
@@ -119,55 +132,80 @@ function Column({
           entries.map((entry) => {
             const selected = selectedName === entry.name;
             return (
-              <button
-                key={entry.fid || joinPath(path, entry.name)}
-                type="button"
-                aria-current={
-                  selected ? (entry.is_dir ? "page" : "true") : undefined
-                }
-                onClick={() =>
-                  entry.is_dir
-                    ? onNavigate(joinPath(path, entry.name))
-                    : onSelectFile(path, entry)
-                }
-                className={cn(
-                  "flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors",
-                  selected
-                    ? "bg-brand-soft text-brand-ink"
-                    : "text-ink hover:bg-line-soft",
-                )}
-              >
-                {entry.is_dir ? (
-                  <Folder
-                    className="h-3.5 w-3.5 shrink-0 text-amber-500"
-                    strokeWidth={1.6}
-                  />
-                ) : (
-                  <FileText
-                    className={cn(
-                      "h-3.5 w-3.5 shrink-0",
-                      selected ? "text-brand-ink" : "text-subtle",
-                    )}
-                    strokeWidth={1.6}
-                  />
-                )}
-                <TruncatedText
-                  name={entry.name}
-                  className="min-w-0 flex-1 truncate text-[12px]"
+              <ContextMenu key={entry.fid || joinPath(path, entry.name)}>
+                <ContextMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-current={
+                        selected ? (entry.is_dir ? "page" : "true") : undefined
+                      }
+                      onClick={() =>
+                        entry.is_dir
+                          ? onNavigate(joinPath(path, entry.name))
+                          : onSelectFile(path, entry)
+                      }
+                      className={cn(
+                        "flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors",
+                        selected
+                          ? "bg-brand-soft text-brand-ink"
+                          : "text-ink hover:bg-line-soft",
+                      )}
+                    >
+                      {entry.is_dir ? (
+                        <Folder
+                          className="h-3.5 w-3.5 shrink-0 text-amber-500"
+                          strokeWidth={1.6}
+                        />
+                      ) : (
+                        <FileText
+                          className={cn(
+                            "h-3.5 w-3.5 shrink-0",
+                            selected ? "text-brand-ink" : "text-subtle",
+                          )}
+                          strokeWidth={1.6}
+                        />
+                      )}
+                      <TruncatedText
+                        name={entry.name}
+                        className="min-w-0 flex-1 truncate text-[12px]"
+                      />
+                      {entry.is_dir ? (
+                        <ChevronRight
+                          className={cn(
+                            "h-3.5 w-3.5 shrink-0",
+                            selected ? "text-brand-ink" : "text-subtle",
+                          )}
+                        />
+                      ) : (
+                        <span className="shrink-0 font-mono text-[11px] text-subtle">
+                          {formatBytes(entry.size)}
+                        </span>
+                      )}
+                    </button>
+                  }
                 />
-                {entry.is_dir ? (
-                  <ChevronRight
-                    className={cn(
-                      "h-3.5 w-3.5 shrink-0",
-                      selected ? "text-brand-ink" : "text-subtle",
-                    )}
-                  />
-                ) : (
-                  <span className="shrink-0 font-mono text-[11px] text-subtle">
-                    {formatBytes(entry.size)}
-                  </span>
-                )}
-              </button>
+                <ContextMenuContent>
+                  <ContextMenuItem
+                    onClick={() =>
+                      actions.openRename(entry, path, onItemRenamed)
+                    }
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    编辑
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem
+                    variant="destructive"
+                    onClick={() =>
+                      actions.openDelete(entry, path, onItemDeleted)
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    删除
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             );
           })
         )}
@@ -314,8 +352,11 @@ export function ColumnBrowser({
               path={columnPath}
               cache={cache}
               selectedName={selectedName}
+              actions={actions}
               onNavigate={onNavigate}
               onSelectFile={onSelectFile}
+              onItemRenamed={onItemRenamed}
+              onItemDeleted={onItemDeleted}
             />
           );
         })}
