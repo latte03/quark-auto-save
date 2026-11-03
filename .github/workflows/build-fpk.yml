@@ -2,9 +2,11 @@ name: Build fnOS FPK
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -47,9 +49,18 @@ jobs:
 
       - name: Package fpk
         id: package
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           ./poc/fnos/build.sh
           version="$(sed -n 's/^version=//p' poc/fnos/manifest)"
+          if [ -n "$RELEASE_TAG" ]; then
+            tag="${RELEASE_TAG#v}"
+            if [ "$tag" != "$version" ]; then
+              echo "release tag $RELEASE_TAG does not match manifest version $version" >&2
+              exit 1
+            fi
+          fi
           sha256sum "dist/qas_${version}_x86.fpk" > "dist/qas_${version}_x86.fpk.sha256"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -60,3 +71,14 @@ jobs:
             dist/qas_${{ steps.package.outputs.version }}_x86.fpk
             dist/qas_${{ steps.package.outputs.version }}_x86.fpk.sha256
           if-no-files-found: error
+
+      - name: Attach assets to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            "dist/qas_${{ steps.package.outputs.version }}_x86.fpk" \
+            "dist/qas_${{ steps.package.outputs.version }}_x86.fpk.sha256" \
+            --clobber
