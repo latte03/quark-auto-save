@@ -1,0 +1,62 @@
+name: Build fnOS FPK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.8.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Build web
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: poc/go.mod
+          cache-dependency-path: poc/go.sum
+
+      - name: Install fnpack
+        env:
+          # 1.2.3 is required: older fnpack output is rejected by current fnOS.
+          FNPACK_URL: https://static2.fnnas.com/fnpack/fnpack-1.2.3-linux-amd64
+          FNPACK_SHA256: 54b97fa7b70968c4d05c79840f5daeff508957d0bb2062fdb0376d00d9615c93
+        run: |
+          curl -fsSL --retry 3 --retry-delay 2 -o "$RUNNER_TEMP/fnpack" "$FNPACK_URL"
+          echo "$FNPACK_SHA256  $RUNNER_TEMP/fnpack" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/fnpack"
+          echo "FNPACK=$RUNNER_TEMP/fnpack" >> "$GITHUB_ENV"
+
+      - name: Package fpk
+        id: package
+        run: |
+          ./poc/fnos/build.sh
+          version="$(sed -n 's/^version=//p' poc/fnos/manifest)"
+          sha256sum "dist/qas_${version}_x86.fpk" > "dist/qas_${version}_x86.fpk.sha256"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qas-${{ steps.package.outputs.version }}-x86-fpk
+          path: |
+            dist/qas_${{ steps.package.outputs.version }}_x86.fpk
+            dist/qas_${{ steps.package.outputs.version }}_x86.fpk.sha256
+          if-no-files-found: error
