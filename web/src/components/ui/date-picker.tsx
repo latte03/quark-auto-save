@@ -57,8 +57,9 @@ export function DatePicker({
           </button>
         }
       />
-      <PopoverContent className="w-auto p-1">
+      <PopoverContent className="w-(--anchor-width) p-1">
         <Calendar
+          className="w-full!"
           mode="single"
           selected={selected}
           defaultMonth={selected}

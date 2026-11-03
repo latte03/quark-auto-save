@@ -15,9 +15,11 @@ const HEIGHT_CLASS = {
   default: "h-8",
   sm: "h-7",
 } as const
+// The shared layout animation leaves an inline border-radius on the trigger.
+// Keep the class authoritative so the closed trigger stays rounded.
 const RADIUS_CLASS = {
-  default: "rounded-lg",
-  sm: "rounded-[min(var(--radius-md),10px)]",
+  default: "rounded-lg!",
+  sm: "rounded-[min(var(--radius-md),10px)]!",
 } as const
 const TYPEAHEAD_MS = 500
 
