@@ -105,9 +105,6 @@ export function AppSidebar({
             <div className="truncate text-[14px] font-semibold tracking-wide text-ink">
               夸克自动转存
             </div>
-            <div className="truncate font-mono text-[11px] tracking-[0.16em] text-subtle">
-              QAS · SELF-HOSTED
-            </div>
           </div>
           <button
             aria-label="关闭导航"
