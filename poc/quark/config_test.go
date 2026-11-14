@@ -1,6 +1,7 @@
 package quark
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -141,5 +142,35 @@ func TestExtractSharePath(t *testing.T) {
 	root, err := ExtractShareURL("https://pan.quark.cn/s/abc")
 	if err != nil || root.PdirFID != "0" || len(root.Paths) != 0 {
 		t.Fatalf("root ref = %#v, err = %v", root, err)
+	}
+}
+
+func TestTaskDownloadOnlyRoundTrip(t *testing.T) {
+	var task Task
+	data := []byte(`{"taskname":"仅下载","savepath":"/tv/已有","download_only":true,"local_download":{"enable":true,"dir":"/vol1/1000/media"}}`)
+	if err := json.Unmarshal(data, &task); err != nil {
+		t.Fatal(err)
+	}
+	if !task.DownloadOnly {
+		t.Fatal("download_only should parse to true")
+	}
+	encoded, err := json.Marshal(&task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"download_only":true`) {
+		t.Fatalf("encoded task lost download_only: %s", encoded)
+	}
+
+	var plain Task
+	if err := json.Unmarshal([]byte(`{"taskname":"普通任务"}`), &plain); err != nil {
+		t.Fatal(err)
+	}
+	plainEncoded, err := json.Marshal(&plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plainEncoded), "download_only") {
+		t.Fatalf("false download_only should not persist: %s", plainEncoded)
 	}
 }

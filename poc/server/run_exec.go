@@ -76,8 +76,9 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 	if len(selected) == 0 && spec.Inline == nil {
 		for index, task := range snapshot.Tasks {
 			// Finished one-shot tasks stay in the list as a record but are
-			// not part of "run everything" anymore.
-			if task.OnceFinished() {
+			// not part of "run everything" anymore; disabled tasks leave the
+			// schedule but stay runnable by hand.
+			if task.OnceFinished() || task.Disabled {
 				continue
 			}
 			selected = append(selected, index)
@@ -132,6 +133,10 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 
 	var runTasks []*quark.Task
 	for _, job := range jobs {
+		// Download-only tasks have no cloud destination to pre-create.
+		if job.task.DownloadOnly {
+			continue
+		}
 		runTasks = append(runTasks, job.task)
 	}
 	if err := runner.UpdateSavepathFID(runTasks); err != nil {
@@ -143,14 +148,22 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 	completed := map[int]bool{}
 	saved := 0
 	executed := 0
+	// Tasks that hit their own error: the run as a whole still "finishes", but
+	// the UI must not present that as success.
+	failedTasks := 0
 	for position, job := range jobs {
 		index := job.index
 		task := job.task
 		logf("")
 		logf("#%d------------------", position+1)
 		logf("任务名称: %s", task.TaskName)
-		logf("分享链接: %s", task.ShareURL)
-		logf("保存路径: %s", task.SavePath)
+		if task.DownloadOnly {
+			logf("任务类型: 仅下载（网盘目录 → 本地）")
+			logf("网盘源目录: %s", task.SavePath)
+		} else {
+			logf("分享链接: %s", task.ShareURL)
+			logf("保存路径: %s", task.SavePath)
+		}
 		if task.Pattern != "" {
 			logf("正则匹配: %s", task.Pattern)
 		}
@@ -180,6 +193,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 		scheduled, err := runnableTask(task, time.Now())
 		if err != nil {
 			logf("✗ 任务周期解析失败: %v", err)
+			failedTasks++
 			continue
 		}
 		if !scheduled {
@@ -187,20 +201,11 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 			continue
 		}
 		executed++
+		// 失败判定用两类信号叠加：显式错误（err/新失效/仅下载配置问题）直接计数；
+		// pipeline 容错继续的场景（转存失败后兜底、目录 fid 缺失）靠 ❌/✗ 日志标记扫描。
+		markerLine := run.LineCount()
+		counted := false
 
-		tree, err := runner.DoSaveTask(task)
-		if err != nil {
-			logf("✗ 任务失败: %v", err)
-			continue
-		}
-		if task.ShareURLBan != "" && (index < 0 || task.ShareURLBan != snapshot.Tasks[index].ShareURLBan) {
-			if write && index >= 0 {
-				// 立即落盘，运行过程被打断时封锁标记也不会丢。
-				if err := s.store.ApplyRunResults(map[int]string{index: task.ShareURLBan}, nil, nil); err != nil {
-					logf("✗ 回写封锁标记失败: %v", err)
-				}
-			}
-		}
 		// A one-shot task finishes when its download job finishes; one that
 		// needs no download is done as soon as the transfer succeeded.
 		// Failures and bans keep it runnable.
@@ -217,6 +222,63 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 		if write && index >= 0 && task.IsOnce() && !task.OnceFinished() {
 			onDownloadDone = s.onceDoneCallback(task)
 		}
+
+		// 仅下载任务：savepath 是网盘源目录，跳过转存与插件，直接做云端 → 本地增量。
+		if task.DownloadOnly {
+			if task.LocalDownload == nil {
+				logf("✗ 仅下载任务缺少「下载到 NAS」配置")
+				failedTasks++
+				continue
+			}
+			root := strings.TrimSpace(task.LocalDownload.Dir)
+			if root == "" {
+				root = snapshot.Download.Dir
+			}
+			overwrite := task.LocalDownload.Overwrite
+			if write {
+				if message := localRootValidator(root); message != "" {
+					logf("✗ 本地下载目录无效：%s", message)
+					failedTasks++
+					continue
+				}
+				queued, count := s.enqueueTaskDownload(task, nil, snapshot.Download, client, logf, onDownloadDone)
+				stats[task.TaskName] = count
+				saved += count
+				if !counted && run.HasErrorSince(markerLine) {
+					// 云端目录读取失败等 pipeline 级 ❌：任务没有完成同步。
+					failedTasks++
+				}
+				finishOnce(queued)
+				continue
+			}
+			if message := localRootValidator(root); message != "" {
+				logf("✗ 本地下载目录无效：%s", message)
+				continue
+			}
+			items := s.collectMissingDownloads(client, task, root, overwrite, nil, logf)
+			logf("（演练）将下载 %d 个文件 → %s", len(items), root)
+			saved += len(items)
+			continue
+		}
+
+		tree, err := runner.DoSaveTask(task)
+		if err != nil {
+			logf("✗ 任务失败: %v", err)
+			failedTasks++
+			counted = true
+			continue
+		}
+		if task.ShareURLBan != "" && (index < 0 || task.ShareURLBan != snapshot.Tasks[index].ShareURLBan) {
+			// 本次运行发现分享失效：任务没有完成转存，计入失败数。
+			failedTasks++
+			counted = true
+			if write && index >= 0 {
+				// 立即落盘，运行过程被打断时封锁标记也不会丢。
+				if err := s.store.ApplyRunResults(map[int]string{index: task.ShareURLBan}, nil, nil); err != nil {
+					logf("✗ 回写封锁标记失败: %v", err)
+				}
+			}
+		}
 		if err := task.MergePluginDefaults(pluginList); err != nil {
 			logf("✗ 合并插件默认配置失败: %v", err)
 		}
@@ -228,7 +290,11 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 			// files from earlier runs.
 			queued := false
 			if write {
-				queued = s.enqueueTaskDownload(task, nil, snapshot.Download, client, logf, onDownloadDone)
+				queued, _ = s.enqueueTaskDownload(task, nil, snapshot.Download, client, logf, onDownloadDone)
+			}
+			if !counted && run.HasErrorSince(markerLine) {
+				// pipeline 容错继续了（转存失败兜底、目录缺失），但任务没转成。
+				failedTasks++
 			}
 			finishOnce(queued)
 			continue
@@ -251,10 +317,14 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 				HTTP:        pluginHTTP,
 			})
 		}
-		queued := s.enqueueTaskDownload(task, tree, snapshot.Download, client, logf, onDownloadDone)
+		queued, _ := s.enqueueTaskDownload(task, tree, snapshot.Download, client, logf, onDownloadDone)
+		if !counted && run.HasErrorSince(markerLine) {
+			failedTasks++
+		}
 		finishOnce(queued)
 	}
 
+	run.SetFailed(failedTasks)
 	if write {
 		run.setStats(stats)
 		if spec.Inline == nil {

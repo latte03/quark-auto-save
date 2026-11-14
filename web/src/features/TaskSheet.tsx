@@ -40,6 +40,8 @@ type TaskSheetProps = {
   magicRegex: AppConfig["magic_regex"];
   pluginDefaults: Record<string, PluginConfig>;
   searchReady: boolean;
+  /** 打开时自动展开搜索面板（失效修复入口直接带用户到搜索）。 */
+  initialSearch?: boolean;
   onOpenSettings: () => void;
   onSave: (task: Task, runAfter: boolean) => Promise<boolean>;
   onTry: (task: Task) => Promise<boolean>;
@@ -53,6 +55,7 @@ export function TaskSheet({
   magicRegex,
   pluginDefaults,
   searchReady,
+  initialSearch = false,
   onOpenSettings,
   onSave,
   onTry,
@@ -65,7 +68,7 @@ export function TaskSheet({
     magicRegex,
     pluginDefaults,
   });
-  const search = useShareSearch(open, searchReady);
+  const search = useShareSearch(open, searchReady, initialSearch);
   const link = useLinkValidation(open, task);
   const [picker, setPicker] = useState<PickerMode | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -74,6 +77,7 @@ export function TaskSheet({
   const isNew = !task;
   const banned = Boolean(draft.shareurl_ban);
   const onceMode = draft.mode === "once";
+  const downloadOnly = Boolean(draft.download_only);
 
   const requestClose = () => {
     if (!dirty) {
@@ -83,10 +87,40 @@ export function TaskSheet({
     setConfirmClose(true);
   };
 
+  // 校验失败时把第一个出错的字段滚到视野中央并聚焦，省去自己找。
+  const focusField = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (el instanceof HTMLElement) el.focus({ preventScroll: true });
+  };
+
   // 保存与试运行共用同一份规范化结果，避免两条路径的字段产生差异。
   const buildPayload = () => {
-    if (!draft.taskname.trim() || !draft.shareurl.trim() || !draft.savepath.trim()) {
+    if (downloadOnly) {
+      if (!draft.taskname.trim() || !draft.savepath.trim()) {
+        notify("任务名称、网盘源目录为必填项", "warn");
+        focusField(!draft.taskname.trim() ? "taskname" : "savepath");
+        return null;
+      }
+      if (!draft.local_download?.dir?.trim()) {
+        notify("仅下载任务需要选择本地下载目录", "warn");
+        focusField("download-dir");
+        return null;
+      }
+    } else if (
+      !draft.taskname.trim() ||
+      !draft.shareurl.trim() ||
+      !draft.savepath.trim()
+    ) {
       notify("任务名称、分享链接、保存路径为必填项", "warn");
+      focusField(
+        !draft.taskname.trim()
+          ? "taskname"
+          : !draft.shareurl.trim()
+            ? "shareurl"
+            : "savepath",
+      );
       return null;
     }
     const next: Task = {
@@ -95,6 +129,7 @@ export function TaskSheet({
       status: banned ? "tracking" : draft.status,
     };
     if (!onceMode) delete next.mode;
+    if (!downloadOnly) delete next.download_only;
     return next;
   };
 
@@ -170,8 +205,16 @@ export function TaskSheet({
           <SheetBody className="space-y-4 [&_[data-slot=field-label]]:text-muted-ink">
             <BasicInfoSection />
             <ScheduleSection open={open} />
-            <MatchSection open={open} />
-            <PluginsSection open={open} />
+            {downloadOnly ? (
+              <p className="rounded-md border border-line bg-line-soft/40 px-3 py-2.5 text-[12px] leading-5 text-muted-ink">
+                仅下载任务按网盘目录与本地目录的差集增量下载，命名规则与插件不参与。
+              </p>
+            ) : (
+              <>
+                <MatchSection open={open} />
+                <PluginsSection open={open} />
+              </>
+            )}
           </SheetBody>
 
           <SheetFooter className="flex-row items-center justify-between gap-2">

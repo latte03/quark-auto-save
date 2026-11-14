@@ -7,18 +7,20 @@ import (
 	"path/filepath"
 	"time"
 
+	"qas-poc/mcp"
 	"qas-poc/quark"
 )
 
 const sessionCookie = "QUARK_AUTO_SAVE_SESSION"
 
 type Options struct {
-	ConfigPath string
-	DataDir    string
-	StaticDir  string
-	Version    string
-	Logger     *log.Logger
-	HTTP       *http.Client
+	ConfigPath  string
+	DataDir     string
+	StaticDir   string
+	Version     string
+	MCPReadOnly bool
+	Logger      *log.Logger
+	HTTP        *http.Client
 }
 
 type Server struct {
@@ -29,9 +31,11 @@ type Server struct {
 	http      *http.Client
 	opts      Options
 	mux       *http.ServeMux
+	mcp       *mcp.Server
 	newClient func(string) *quark.Client
 	downloads *downloadQueue
 	runLogs   *runLogStore
+	taskStats *taskStatsStore
 	qr        *qrLogin
 }
 
@@ -66,6 +70,7 @@ func New(opts Options) (*Server, error) {
 		dataDir = filepath.Dir(opts.ConfigPath)
 	}
 	server.runLogs = newRunLogStore(filepath.Join(dataDir, "runs"))
+	server.taskStats = newTaskStatsStore(filepath.Join(dataDir, "task_stats.json"))
 	server.runs.Logger = logger
 	server.runs.OnFinish = func(run *Run) {
 		if !run.Write {
@@ -74,6 +79,7 @@ func New(opts Options) (*Server, error) {
 		if err := server.runLogs.save(run, store.RunLogKeep()); err != nil {
 			logger.Printf("保存运行日志失败: %v", err)
 		}
+		server.taskStats.record(run.View().Tasks)
 	}
 	server.scheduler = NewScheduler(server)
 	if err := server.scheduler.Reload(); err != nil {
@@ -90,6 +96,20 @@ func (s *Server) Handler() http.Handler { return s.mux }
 
 func (s *Server) routes() {
 	mux := http.NewServeMux()
+	// The MCP endpoint serves tool calls over Streamable HTTP and reaches the
+	// API through this same mux in-process; build it before registering so it
+	// can hold a reference.
+	s.mcp = mcp.New(mcp.NewHandlerClient(mux, s.derivedAPIToken), mcp.Options{
+		Version:  s.opts.Version,
+		ReadOnly: s.opts.MCPReadOnly,
+		Logger:   s.logger,
+	})
+	mux.Handle("POST /mcp", s.auth(s.mcp.HTTPHandler().ServeHTTP))
+	// Without this the catch-all static route would serve the SPA for GET /mcp.
+	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "MCP 端点仅支持 POST", http.StatusMethodNotAllowed)
+	})
 	mux.HandleFunc("POST /api/quark/qr", s.auth(s.handleStartQuarkQR))
 	mux.HandleFunc("GET /api/quark/qr/{id}", s.auth(s.handleQuarkQRStatus))
 	mux.HandleFunc("GET /api/quark/account", s.auth(s.handleQuarkAccount))

@@ -11,8 +11,10 @@ export function SaveBar({
   saving: boolean;
   onSave: () => void;
 }) {
+  // 负 margin 抵消内容列 padding 与工具条 8px 内距的差值
+  // （12/16/28px - 8px），左右边缘与顶部悬浮工具条对齐
   return (
-    <div className="-mb-4 sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-line bg-canvas/95 py-2.5 backdrop-blur-sm lg:-mb-5">
+    <div className="sticky bottom-2 z-10 -mx-1 flex items-center justify-between gap-3 rounded-xl border border-line bg-panel/90 px-3 py-2 shadow-panel backdrop-blur-md sm:-mx-2 lg:-mx-5">
       <span
         className={cn(
           "truncate text-[12px]",

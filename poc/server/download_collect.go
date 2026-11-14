@@ -115,11 +115,12 @@ func (s *Server) collectMissingDownloads(client *quark.Client, task *quark.Task,
 }
 
 // enqueueTaskDownload queues the run's new files plus any cloud files that
-// are still missing locally. It reports whether a job was created; onFinish
-// runs when that job reaches a terminal status.
-func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, settings localDownloadSettings, client *quark.Client, logf func(string, ...any), onFinish func(status string)) bool {
+// are still missing locally. It reports whether a job was created and how
+// many files were queued; onFinish runs when that job reaches a terminal
+// status.
+func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, settings localDownloadSettings, client *quark.Client, logf func(string, ...any), onFinish func(status string)) (bool, int) {
 	if task.LocalDownload == nil || !task.LocalDownload.Enable {
-		return false
+		return false, 0
 	}
 	root := strings.TrimSpace(task.LocalDownload.Dir)
 	if root == "" {
@@ -127,11 +128,11 @@ func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, setting
 	}
 	if root == "" {
 		logf("⚠ 已开启本地下载，但未配置下载目录")
-		return false
+		return false, 0
 	}
-	if message := validateLocalRoot(root); message != "" {
+	if message := localRootValidator(root); message != "" {
 		logf("✗ 本地下载目录无效：%s", message)
-		return false
+		return false, 0
 	}
 	overwrite := task.LocalDownload.Overwrite
 	var items []downloadItem
@@ -150,7 +151,7 @@ func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, setting
 	items = append(items, missing...)
 	if len(items) == 0 {
 		logf("⚠ 已开启本地下载：云端与本地都已是最新，无需下载")
-		return false
+		return false, 0
 	}
 	job := &downloadJob{
 		TaskName:    task.TaskName,
@@ -176,5 +177,5 @@ func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, setting
 	}
 	id := s.downloads.Enqueue(job)
 	logf("⬇ 已加入本地下载队列：%d 个文件 → %s（%s）", len(items), root, id)
-	return true
+	return true, len(items)
 }

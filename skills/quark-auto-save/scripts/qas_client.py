@@ -28,7 +28,7 @@ PASSWORD = os.environ.get("QAS_PASSWORD", "")
 TIMEOUT = int(os.environ.get("QAS_TIMEOUT", "60"))
 
 # Keys the task editor computes; sending them back would persist junk.
-DERIVED_TASK_KEYS = ("index", "status", "latest", "next_run", "progress", "magic_name")
+DERIVED_TASK_KEYS = ("index", "status", "latest", "next_run", "next_run_at", "progress", "magic_name")
 
 
 class ApiError(Exception):

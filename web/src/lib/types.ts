@@ -6,7 +6,8 @@ export type TaskStatus =
   | "done"
   | "banned"
   | "once"
-  | "once_done";
+  | "once_done"
+  | "paused";
 
 export type TaskProgress = {
   saved: number;
@@ -26,6 +27,10 @@ export type Task = {
   update_subdir?: string;
   update_subdir_resave_mode?: boolean;
   ignore_extension?: boolean;
+  /** 仅下载任务：savepath 是网盘源目录，跳过分享转存，直接增量下载到本地。 */
+  download_only?: boolean;
+  /** 已停用：不参与定时调度与「运行全部」，仍可手动运行。 */
+  disabled?: boolean;
   startfid?: string;
   enddate?: string;
   runweek: number[];
@@ -163,6 +168,8 @@ export type RunView = {
   dry?: boolean;
   error?: string;
   saved_total: number;
+  /** 本次运行中任务级失败（转存失败、分享失效等）的数量。 */
+  failed_tasks?: number;
   tasks?: Record<string, number>;
 };
 

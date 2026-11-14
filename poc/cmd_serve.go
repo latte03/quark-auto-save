@@ -22,6 +22,7 @@ func cmdServe(args []string) {
 	static := fs.String("static", "", "前端构建目录（默认自动探测 web/dist）")
 	data := fs.String("data", "", "运行数据目录（默认 TRIM_PKGVAR 或配置文件所在目录）")
 	version := fs.String("version", "0.1.0-poc", "版本号")
+	mcpReadOnly := fs.Bool("mcp-read-only", false, "MCP 端点只读模式：不暴露写工具（也可用环境变量 QAS_MCP_READ_ONLY=1）")
 	fs.Parse(args)
 
 	configPath := mustConfigPath(*config)
@@ -36,11 +37,12 @@ func cmdServe(args []string) {
 		}
 	}
 	instance, err := server.New(server.Options{
-		ConfigPath: configPath,
-		DataDir:    *data,
-		StaticDir:  staticDir,
-		Version:    *version,
-		Logger:     logger,
+		ConfigPath:  configPath,
+		DataDir:     *data,
+		StaticDir:   staticDir,
+		Version:     *version,
+		MCPReadOnly: *mcpReadOnly || envTruthy("QAS_MCP_READ_ONLY"),
+		Logger:      logger,
 	})
 	if err != nil {
 		fatalf("启动失败: %v", err)

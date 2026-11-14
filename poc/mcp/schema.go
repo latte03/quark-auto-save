@@ -45,6 +45,8 @@ func taskSchema(description string) map[string]any {
 		"update_subdir":             stringSchema("追更时只更新指定子目录的匹配式"),
 		"update_subdir_resave_mode": booleanSchema("追更子目录时重新转存"),
 		"ignore_extension":          booleanSchema("比较已存在文件时忽略后缀"),
+		"download_only":             booleanSchema("true 时为仅下载任务：savepath 是网盘源目录，不做分享转存，只把云端新增文件下载到 local_download.dir；shareurl 留空"),
+		"disabled":                  booleanSchema("true 时停用任务：不参与定时调度与「运行全部」，仍可手动运行"),
 		"runweek": map[string]any{
 			"type":        "array",
 			"items":       map[string]any{"type": "integer"},

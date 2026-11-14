@@ -11,6 +11,9 @@ import { RunLogDialog } from "./RunLogDialog";
 
 type RunsPageProps = {
   running: boolean;
+  /** 从 hash 直达一次运行的日志（#/runs/<id>），打开后即消费掉。 */
+  initialRunId?: string | null;
+  onConsumeRunId?: () => void;
   onOpenActive: () => void;
 };
 
@@ -35,7 +38,7 @@ function duration(run: RunView) {
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m${seconds % 60}s`;
 }
 
-export function RunsPage({ running, onOpenActive }: RunsPageProps) {
+export function RunsPage({ running, initialRunId, onConsumeRunId, onOpenActive }: RunsPageProps) {
   const [runs, setRuns] = useState<RunView[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -72,6 +75,16 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
     if (wasRunning.current && !running) void load();
     wasRunning.current = running;
   }, [load, running]);
+
+  // hash 直达：#/runs/<id> 打开对应日志一次。
+  useEffect(() => {
+    if (!initialRunId) return;
+    const run = runs.find((item) => item.id === initialRunId);
+    onConsumeRunId?.();
+    if (run) void viewRun(run);
+    // viewRun 每次渲染都是新引用，这里只依赖数据就绪即可。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRunId, runs]);
 
   const viewRun = async (run: RunView) => {
     if (!run.done) {
@@ -178,13 +191,21 @@ export function RunsPage({ running, onOpenActive }: RunsPageProps) {
                     <td className="px-3 py-2">
                       <div className="flex min-w-0 items-center gap-1.5">
                         <span className="min-w-0 truncate text-[13px] text-ink">{run.label}</span>
-                        {run.dry ? <Badge variant="warn">试运行</Badge> : null}
-                        {!run.done ? <Badge variant="info">运行中</Badge> : null}
+                        {run.dry ? <Badge variant="info">试运行</Badge> : null}
+                        {!run.done ? (
+                          <Badge variant="info" dot className="animate-pulse-live">
+                            运行中
+                          </Badge>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-3 py-2">
                       {run.error ? (
                         <Badge variant="danger">失败</Badge>
+                      ) : run.done && (run.failed_tasks ?? 0) > 0 ? (
+                        <Badge variant="warn">
+                          完成 · {run.failed_tasks} 失败
+                        </Badge>
                       ) : run.done ? (
                         <Badge variant="ok">完成</Badge>
                       ) : (

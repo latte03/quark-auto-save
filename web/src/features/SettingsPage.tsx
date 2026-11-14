@@ -14,6 +14,7 @@ import { DownloadSection } from "./settings/DownloadSection";
 import { PluginsSection } from "./settings/PluginsSection";
 import { MagicSection } from "./settings/MagicSection";
 import { SourceSection } from "./settings/SourceSection";
+import { AccessSection } from "./settings/AccessSection";
 import type { SettingsSection } from "./settings/constants";
 
 type SettingsPageProps = {
@@ -103,6 +104,7 @@ export function SettingsPage({
             <PluginsSection />
             <MagicSection />
             <SourceSection />
+            <AccessSection />
           </div>
         </div>
         <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} />

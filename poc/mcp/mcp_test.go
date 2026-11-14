@@ -1,10 +1,8 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -310,32 +308,137 @@ func TestUnknownTool(t *testing.T) {
 	}
 }
 
-func TestServeHandlesNewlineMessages(t *testing.T) {
-	server, _, _ := newTestServer(t, false)
-	input := strings.NewReader(
-		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}` + "\n" +
-			`{"jsonrpc":"2.0","method":"notifications/initialized"}` + "\n" +
-			`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n")
-	var out bytes.Buffer
-	if err := server.Serve(context.Background(), input, &out); err != nil {
-		t.Fatal(err)
+// ---------- HTTP transport ----------
+
+func postMCP(t *testing.T, handler http.Handler, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func decodeRPC(t *testing.T, recorder *httptest.ResponseRecorder) rpcResponse {
+	t.Helper()
+	var response rpcResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("response body = %s", recorder.Body.String())
 	}
-	decoder := json.NewDecoder(bytes.NewReader(out.Bytes()))
-	responses := map[string]rpcResponse{}
-	for {
-		var response rpcResponse
-		if err := decoder.Decode(&response); err != nil {
-			if err == io.EOF {
-				break
-			}
-			t.Fatal(err)
-		}
-		responses[string(response.ID)] = response
+	return response
+}
+
+func TestHTTPInitializeAndToolsList(t *testing.T) {
+	server, _, _ := newTestServer(t, false)
+	handler := server.HTTPHandler()
+
+	recorder := postMCP(t, handler, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("initialize = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Fatalf("content type = %q", contentType)
+	}
+	response := decodeRPC(t, recorder)
+	result, _ := response.Result.(map[string]any)
+	if result == nil || result["protocolVersion"] != "2025-06-18" {
+		t.Fatalf("initialize result = %#v", response.Result)
+	}
+
+	recorder = postMCP(t, handler, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("tools/list = %d", recorder.Code)
+	}
+	response = decodeRPC(t, recorder)
+	result, _ = response.Result.(map[string]any)
+	tools, _ := result["tools"].([]any)
+	if len(tools) == 0 {
+		t.Fatalf("tools empty")
+	}
+}
+
+func TestHTTPUnsupportedProtocolFallsBack(t *testing.T) {
+	server, _, _ := newTestServer(t, false)
+	recorder := postMCP(t, server.HTTPHandler(), `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1999-01-01"}}`)
+	response := decodeRPC(t, recorder)
+	result, _ := response.Result.(map[string]any)
+	if result["protocolVersion"] != protocolVersion {
+		t.Fatalf("protocolVersion = %v, want %s", result["protocolVersion"], protocolVersion)
+	}
+}
+
+func TestHTTPNotificationAccepted(t *testing.T) {
+	server, _, _ := newTestServer(t, false)
+	recorder := postMCP(t, server.HTTPHandler(), `{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("notification = %d, want 202", recorder.Code)
+	}
+	if recorder.Body.Len() != 0 {
+		t.Fatalf("notification body = %q", recorder.Body.String())
+	}
+}
+
+func TestHTTPBatch(t *testing.T) {
+	server, _, _ := newTestServer(t, false)
+	recorder := postMCP(t, server.HTTPHandler(), `[
+		{"jsonrpc":"2.0","method":"notifications/initialized"},
+		{"jsonrpc":"2.0","id":1,"method":"ping"},
+		{"jsonrpc":"2.0","id":2,"method":"ping"}
+	]`)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("batch = %d", recorder.Code)
+	}
+	var responses []rpcResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &responses); err != nil {
+		t.Fatalf("batch body = %s", recorder.Body.String())
 	}
 	if len(responses) != 2 {
 		t.Fatalf("responses = %#v", responses)
 	}
-	if responses["1"].Error != nil || responses["2"].Error != nil {
-		t.Fatalf("responses = %#v", responses)
+
+	allNotifications := postMCP(t, server.HTTPHandler(), `[{"jsonrpc":"2.0","method":"notifications/initialized"}]`)
+	if allNotifications.Code != http.StatusAccepted {
+		t.Fatalf("all notifications = %d, want 202", allNotifications.Code)
+	}
+}
+
+func TestHTTPErrorsAndMethodNotAllowed(t *testing.T) {
+	server, _, _ := newTestServer(t, false)
+	handler := server.HTTPHandler()
+
+	recorder := postMCP(t, handler, `{broken`)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("malformed = %d, want 400", recorder.Code)
+	}
+	response := decodeRPC(t, recorder)
+	if response.Error == nil || response.Error.Code != -32700 {
+		t.Fatalf("malformed response = %#v", response)
+	}
+
+	recorder = postMCP(t, handler, ``)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("empty = %d, want 400", recorder.Code)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/mcp", nil)
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("GET = %d, want 405", recorder.Code)
+	}
+	if allow := recorder.Header().Get("Allow"); allow != http.MethodPost {
+		t.Fatalf("allow = %q", allow)
+	}
+}
+
+func TestHandlerClientUsesInProcessMux(t *testing.T) {
+	fake := &fakeAPI{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/", fake.handler(t))
+	client := NewHandlerClient(mux, func() string { return "test-token" })
+	server := New(client, Options{Version: "test"})
+	status := resultText(t, callTool(t, server, "get_status", nil))
+	if !strings.Contains(status, "task_count") {
+		t.Fatalf("status = %s", status)
 	}
 }

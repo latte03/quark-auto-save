@@ -17,7 +17,13 @@ import {
   SelectValue,
 } from "../components/ui/select";
 
-export type TaskFilter = "all" | "tracking" | "waiting" | "done" | "banned";
+export type TaskFilter =
+  | "all"
+  | "tracking"
+  | "waiting"
+  | "done"
+  | "banned"
+  | "paused";
 type Sort = "recent" | "name" | "next" | "status";
 
 const filterLabels: Record<TaskFilter, string> = {
@@ -26,6 +32,7 @@ const filterLabels: Record<TaskFilter, string> = {
   waiting: "等待运行",
   done: "已完结",
   banned: "失效",
+  paused: "已停用",
 };
 
 const SORT_OPTIONS: { value: Sort; label: string }[] = [
@@ -37,11 +44,12 @@ const SORT_OPTIONS: { value: Sort; label: string }[] = [
 
 const statusOrder: Record<Task["status"], number> = {
   banned: 0,
-  once: 1,
-  waiting: 2,
-  tracking: 3,
-  done: 4,
-  once_done: 5,
+  paused: 1,
+  once: 2,
+  waiting: 3,
+  tracking: 4,
+  done: 5,
+  once_done: 6,
 };
 
 // One-shot tasks count as "waiting" until they run and as "done" afterwards.
@@ -80,6 +88,7 @@ type TasksPageProps = {
   onRunTask: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   onRepairTask: (task: Task) => void;
+  onToggleTask: (task: Task, disabled: boolean) => void;
 };
 
 export function TasksPage({
@@ -92,6 +101,7 @@ export function TasksPage({
   onRunTask,
   onDeleteTask,
   onRepairTask,
+  onToggleTask,
 }: TasksPageProps) {
   const [filter, setFilter] = useState<TaskFilter>(initialFilter);
   const [sort, setSort] = useState<Sort>("recent");
@@ -137,12 +147,14 @@ export function TasksPage({
       waiting: 0,
       done: 0,
       banned: 0,
+      paused: 0,
     };
     for (const task of tasks) {
       if (task.status === "tracking") next.tracking += 1;
       if (inFilter(task.status, "waiting")) next.waiting += 1;
       if (inFilter(task.status, "done")) next.done += 1;
       if (task.status === "banned") next.banned += 1;
+      if (task.status === "paused") next.paused += 1;
     }
     return next;
   }, [tasks]);
@@ -245,6 +257,7 @@ export function TasksPage({
             onRun={onRunTask}
             onDelete={onDeleteTask}
             onRepair={onRepairTask}
+            onToggle={onToggleTask}
           />
         )}
 

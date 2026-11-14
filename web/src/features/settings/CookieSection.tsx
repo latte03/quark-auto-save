@@ -209,7 +209,7 @@ export function CookieSection() {
           <div key={index}>
             <div className="mb-1.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-sidebar text-[12px] font-semibold text-white">
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-soft text-[12px] font-semibold text-brand-ink">
                   {index + 1}
                 </span>
                 <span className="text-[12px] font-medium text-ink">

@@ -208,6 +208,10 @@ func validateLocalRoot(path string) string {
 	return ""
 }
 
+// localRootValidator is indirected so tests can loosen the fnOS storage-space
+// rule and download into a temp directory.
+var localRootValidator = validateLocalRoot
+
 func checkLocalDir(path string) localDirCheck {
 	info, err := os.Stat(path)
 	if err != nil {

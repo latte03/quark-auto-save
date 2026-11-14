@@ -11,15 +11,16 @@ import (
 )
 
 type runLogMeta struct {
-	ID         string     `json:"id"`
-	Label      string     `json:"label"`
-	StartedAt  time.Time  `json:"started_at"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
-	Done       bool       `json:"done"`
-	Error      string     `json:"error,omitempty"`
-	SavedTotal int        `json:"saved_total"`
-	Dry        bool       `json:"dry,omitempty"`
-	Lines      int        `json:"lines"`
+	ID          string     `json:"id"`
+	Label       string     `json:"label"`
+	StartedAt   time.Time  `json:"started_at"`
+	FinishedAt  *time.Time `json:"finished_at,omitempty"`
+	Done        bool       `json:"done"`
+	Error       string     `json:"error,omitempty"`
+	SavedTotal  int        `json:"saved_total"`
+	FailedTasks int        `json:"failed_tasks,omitempty"`
+	Dry         bool       `json:"dry,omitempty"`
+	Lines       int        `json:"lines"`
 }
 
 // runLogStore persists finished runs as <id>.json + <id>.log and keeps only
@@ -37,15 +38,16 @@ func (s *runLogStore) save(run *Run, keep int) error {
 	view := run.View()
 	lines := run.AllLines()
 	meta := runLogMeta{
-		ID:         view.ID,
-		Label:      view.Label,
-		StartedAt:  view.StartedAt,
-		FinishedAt: view.FinishedAt,
-		Done:       true,
-		Error:      view.Error,
-		SavedTotal: view.SavedTotal,
-		Dry:        view.Dry,
-		Lines:      len(lines),
+		ID:          view.ID,
+		Label:       view.Label,
+		StartedAt:   view.StartedAt,
+		FinishedAt:  view.FinishedAt,
+		Done:        true,
+		Error:       view.Error,
+		SavedTotal:  view.SavedTotal,
+		FailedTasks: view.FailedTasks,
+		Dry:         view.Dry,
+		Lines:       len(lines),
 	}
 	encoded, err := json.Marshal(meta)
 	if err != nil {
@@ -165,14 +167,15 @@ func validRunID(id string) bool {
 
 func metaView(meta runLogMeta) RunView {
 	return RunView{
-		ID:         meta.ID,
-		Label:      meta.Label,
-		StartedAt:  meta.StartedAt,
-		FinishedAt: meta.FinishedAt,
-		Done:       meta.Done,
-		Error:      meta.Error,
-		SavedTotal: meta.SavedTotal,
-		Dry:        meta.Dry,
+		ID:          meta.ID,
+		Label:       meta.Label,
+		StartedAt:   meta.StartedAt,
+		FinishedAt:  meta.FinishedAt,
+		Done:        meta.Done,
+		Error:       meta.Error,
+		SavedTotal:  meta.SavedTotal,
+		FailedTasks: meta.FailedTasks,
+		Dry:         meta.Dry,
 	}
 }
 

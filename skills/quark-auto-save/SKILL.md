@@ -23,10 +23,12 @@ QAS 是一个自托管的夸克网盘转存服务：一个**任务** = 一个分
 | 变量 | 说明 |
 | --- | --- |
 | `QAS_BASE_URL` | 必填，例如 `http://192.168.1.10:8710`（fnOS 应用的固定端口） |
-| `QAS_TOKEN` | 推荐。服务端 API token，`GET /api/config` 里的 `api_token` |
+| `QAS_TOKEN` | 推荐。服务端 API token，`GET /api/config` 里的 `api_token`（控制台「设置 → 外部接入」也会展示） |
 | `QAS_USER` / `QAS_PASSWORD` | 没有 token 时用 WebUI 账号登录（会话只在本次调用内有效） |
 
 脚本：`python3 {baseDir}/scripts/qas_client.py <命令>`，仅用标准库，无需安装依赖。
+
+如果 agent 支持 MCP（Claude Code、Cursor 等），也可以不装脚本，直接接入 `http://<host>:8710/mcp` + API token（Streamable HTTP），见项目 README 的「外部 Agent 接入」。
 
 ## 命令
 
@@ -73,18 +75,25 @@ JSON 参数都可写成 `@文件路径`。
   "runweek": [1, 2, 3, 4, 5, 6, 7],
   "runtime": ["20:00", "22:30"],
   "mode": "once",
+  "enddate": "",
   "update_subdir": "",
   "ignore_extension": false,
+  "download_only": false,
+  "disabled": false,
   "local_download": { "enable": true, "dir": "/vol1/1000/media/tv" },
   "addition": { "emby": { "enable": true, "server": "http://emby:8096", "apikey": "..." } }
 }
 ```
 
-- **必填**：`taskname`、`shareurl`、`savepath`（不能是 `/`）。
+- **必填**：`taskname`、`shareurl`、`savepath`（不能是 `/`）；`download_only` 任务例外，见下。
 - `shareurl`：`https://pan.quark.cn/s/{id}`，带子目录时用 `#/list/share/{fid}`。
 - `runtime`：`HH:MM` 列表，**任务自己的运行时刻**；没有全局排程。
 - `runweek`：`1`=周一 … `7`=周日；缺省视为每天。
 - `mode`：留空 = 定时追更；`once` = 仅执行一次。一次性任务跑完会保留在列表里并标记完成（`once_done_at` 由服务端写，不要手工设置），「运行全部」会跳过它们；改动其内容后重新变为待执行。
+- `enddate`：`YYYY-MM-DD` 截止日期（含当天），过了日期任务停止运行。
+- `download_only`：`true` 时为**仅下载任务**：`savepath` 变为网盘**源目录**（必须已存在），`shareurl` 留空，魔法正则与插件不参与；每次运行递归扫描源目录，把云端有、本地缺的文件下载到 `local_download.dir`（必须开启）。适合把手动转存好或其他途径进入网盘的文件自动落到 NAS。
+- `disabled`：`true` 时停用任务——不参与定时调度与「运行全部」，但仍可手动指定运行；停用任务的 `status` 显示为 `paused`。
+- 任务列表里的 `status`：`tracking`（追更中）/ `waiting`（今天不在运行日）/ `once`（待执行的一次性）/ `once_done`（已完成的一次性）/ `banned`（分享失效）/ `done`（过了截止日）/ `paused`（已停用）。`index`、`next_run`、`next_run_at`、`latest`、`progress`、`magic_name` 都是服务端派生的显示字段，回传任务时不要带上。
 - `magic_id` + `pattern`/`replace`：二选一。用规则时只填 `magic_id`，`pattern` 留空；`pattern` 里写裸正则（不是规则名）。改名规则只改 `name`，不会影响任务。
 - `update_subdir`：只追某个子目录（如 `S02`）；`ignore_extension`：判断「已存在」时忽略扩展名。
 - `local_download`：任务级本地下载开关、目录与 `overwrite`（同名覆盖，默认关），目录需在管理员已授权范围内。开启后每次运行做两次增量：先转存网盘里新增的文件，再扫描保存目录，把云端有、本地没有的文件补下载。一次性任务要等下载队列跑完才会标记完成。
@@ -134,13 +143,21 @@ JSON 参数都可写成 `@文件路径`。
 4. `update "任务名" '{"shareurl":"<新链接>","pattern":"","magic_id":"..."}'`——需要保持命名一致时再调规则。
 5. `run "任务名" --write --wait`，看日志确认新增集数。
 
-### 4. 运行与排错
+### 4. 网盘已有目录同步到本地
+
+用户想把网盘里**已有目录**（手动转存好、或其他途径进入网盘的文件）自动下载到 NAS，且不想填分享链接时：
+
+1. `add '{"taskname":"...","savepath":"/网盘/源目录","download_only":true,"local_download":{"enable":true,"dir":"/vol1/1000/media/..."},"runtime":["08:00"]}'`
+2. `run "任务名" --wait`（演练默认）：日志会列出「将下载 N 个文件」，先核对清单。
+3. 确认后再 `--write` 真正下载。文件名保持网盘原名；一次性同步完可把 `mode` 设为 `once`。
+
+### 5. 运行与排错
 
 - 一次只能跑一轮：`status` 的 `active_run` 非空时先 `watch` 它，或等结束。
 - 跟日志：`run ... --wait`；历史：`runs` → `log <id> --tail 40`。
 - 转存失败先看日志里的分享链接与正则报错，再决定改链接还是改规则。
 
-### 5. 配置
+### 6. 配置
 
 可写键：`cookie`、`crontab`、`push_config`、`plugins`、`magic_regex`、`source`、`local_download`、`run_logs`。`cookie` 一律不通过 CLI 写（脚本会拒绝），扫码登录在控制台做。
 

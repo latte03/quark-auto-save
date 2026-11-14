@@ -1,5 +1,5 @@
 appname=qas
-version=0.3.8
+version=0.4.2
 display_name=QAS 控制台
 desc=自托管夸克自动转存控制台（Go + React）。
 source=thirdparty
@@ -15,4 +15,4 @@ desktop_applaunchname=qas.main
 service_port=8710
 checkport=true
 ctl_stop=true
-changelog=文件页分栏视图支持右键菜单，可直接编辑或删除文件、文件夹，菜单为磨砂浮层并带缩放淡入；下拉框收起面板后保持圆角，日期面板与触发器等宽；任务插件选项分组展开增加高度动画。
+changelog=界面焕新：应用改为悬浮岛布局（内容面板圆角悬浮、侧边栏浅色融合底色），顶部工具条与设置页保存条改为悬浮圆角条；侧边栏图标升级为真实路径变形动画（激活时形状拉长/压扁/游走后归位），并支持拖拽侧边缘调整宽度；任务菜单补齐图标；界面细节打磨。

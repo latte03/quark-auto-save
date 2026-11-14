@@ -537,7 +537,7 @@ func (q *downloadQueue) run(job *downloadJob) {
 
 // prepare validates the job's target before any transfer starts.
 func (q *downloadQueue) prepare(job *downloadJob) string {
-	if message := validateLocalRoot(job.Root); message != "" {
+	if message := localRootValidator(job.Root); message != "" {
 		return message
 	}
 	if check := checkLocalDir(job.Root); !check.OK {

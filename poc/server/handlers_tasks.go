@@ -32,7 +32,7 @@ func (s *Server) pluginTaskDefaults() map[string]map[string]any {
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	snapshot := s.store.Snapshot()
 	now := time.Now()
-	stats := s.runs.TaskStats()
+	stats := s.taskStats.all()
 	views := make([]map[string]any, 0, len(snapshot.Tasks))
 	for index, task := range snapshot.Tasks {
 		views = append(views, taskView(index, task, now, snapshot.Crontab, stats, snapshot.Magic))
@@ -136,7 +136,7 @@ func (s *Server) respondTasks(w http.ResponseWriter) {
 	}
 	snapshot := s.store.Snapshot()
 	now := time.Now()
-	stats := s.runs.TaskStats()
+	stats := s.taskStats.all()
 	views := make([]map[string]any, 0, len(snapshot.Tasks))
 	for index, task := range snapshot.Tasks {
 		views = append(views, taskView(index, task, now, snapshot.Crontab, stats, snapshot.Magic))
@@ -190,14 +190,21 @@ func validateTask(task *quark.Task) error {
 	if strings.TrimSpace(task.TaskName) == "" {
 		return errors.New("任务名称不能为空")
 	}
-	if task.ShareURL == "" {
-		return errors.New("分享链接不能为空")
-	}
-	if _, err := quark.ExtractShareURL(task.ShareURL); err != nil {
-		return errors.New("分享链接格式无效")
-	}
 	if strings.TrimSpace(task.SavePath) == "" || task.SavePath == "/" {
 		return errors.New("保存路径不能为空")
+	}
+	if task.DownloadOnly {
+		// 仅下载任务以 savepath 为网盘源目录，不解析分享链接。
+		if task.LocalDownload == nil || !task.LocalDownload.Enable {
+			return errors.New("仅下载任务需要开启「下载到 NAS」")
+		}
+	} else {
+		if task.ShareURL == "" {
+			return errors.New("分享链接不能为空")
+		}
+		if _, err := quark.ExtractShareURL(task.ShareURL); err != nil {
+			return errors.New("分享链接格式无效")
+		}
 	}
 	for _, value := range task.RunTime {
 		if _, ok := parseClock(value); !ok {
@@ -256,6 +263,9 @@ func taskView(index int, task *quark.Task, now time.Time, crontab string, stats 
 }
 
 func statusOf(task *quark.Task, now time.Time) string {
+	if task.Disabled {
+		return "paused"
+	}
 	if task.OnceFinished() {
 		return "once_done"
 	}
@@ -307,7 +317,7 @@ var weekdayLabels = []string{"周日", "周一", "周二", "周三", "周四", "
 // nextRunInfo renders the human label and the instant behind it, so the console
 // can sort by absolute time instead of re-parsing localized weekday text.
 func nextRunInfo(task *quark.Task, crontab string, now time.Time) (string, time.Time) {
-	if task.IsOnce() {
+	if task.IsOnce() || task.Disabled {
 		return "—", time.Time{}
 	}
 	var next time.Time

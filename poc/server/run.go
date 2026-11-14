@@ -24,15 +24,16 @@ type TaskStats struct {
 }
 
 type RunView struct {
-	ID         string         `json:"id"`
-	Label      string         `json:"label"`
-	StartedAt  time.Time      `json:"started_at"`
-	FinishedAt *time.Time     `json:"finished_at,omitempty"`
-	Done       bool           `json:"done"`
-	Error      string         `json:"error,omitempty"`
-	SavedTotal int            `json:"saved_total"`
-	Tasks      map[string]int `json:"tasks,omitempty"`
-	Dry        bool           `json:"dry,omitempty"`
+	ID          string         `json:"id"`
+	Label       string         `json:"label"`
+	StartedAt   time.Time      `json:"started_at"`
+	FinishedAt  *time.Time     `json:"finished_at,omitempty"`
+	Done        bool           `json:"done"`
+	Error       string         `json:"error,omitempty"`
+	SavedTotal  int            `json:"saved_total"`
+	FailedTasks int            `json:"failed_tasks,omitempty"`
+	Tasks       map[string]int `json:"tasks,omitempty"`
+	Dry         bool           `json:"dry,omitempty"`
 }
 
 type Run struct {
@@ -47,6 +48,7 @@ type Run struct {
 	errMsg     string
 	finishedAt time.Time
 	saved      int
+	failed     int
 	stats      map[string]int
 	subs       map[chan struct{}]struct{}
 
@@ -137,6 +139,28 @@ func (r *Run) AllLines() []string {
 	return append([]string(nil), r.lines...)
 }
 
+// LineCount returns the number of buffered log lines.
+func (r *Run) LineCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.lines)
+}
+
+// HasErrorSince reports whether any line appended after `from` carries the
+// ❌/✗ markers that the pipeline and executeRun write for task-level errors.
+// The pipeline deliberately tolerates per-task failures (fallback matching,
+// skipped directories), so the run's own error cannot express them.
+func (r *Run) HasErrorSince(from int) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, line := range r.lines[from:] {
+		if strings.Contains(line, "❌") || strings.Contains(line, "✗") {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Run) LinesFrom(offset int) ([]string, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -164,17 +188,27 @@ func (r *Run) Subscribe() (int, <-chan struct{}, func()) {
 	return offset, ch, cancel
 }
 
+// SetFailed records how many tasks inside this run hit their own error, so the
+// UI can tell "the run finished" from "every task failed". Only the run-level
+// error alone would hide per-task transfer failures.
+func (r *Run) SetFailed(count int) {
+	r.mu.Lock()
+	r.failed = count
+	r.mu.Unlock()
+}
+
 func (r *Run) View() RunView {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	view := RunView{
-		ID:         r.ID,
-		Label:      r.Label,
-		StartedAt:  r.StartedAt,
-		Done:       r.done,
-		Error:      r.errMsg,
-		SavedTotal: r.saved,
-		Dry:        !r.Write,
+		ID:          r.ID,
+		Label:       r.Label,
+		StartedAt:   r.StartedAt,
+		Done:        r.done,
+		Error:       r.errMsg,
+		SavedTotal:  r.saved,
+		FailedTasks: r.failed,
+		Dry:         !r.Write,
 	}
 	if !r.finishedAt.IsZero() {
 		finished := r.finishedAt
@@ -382,7 +416,7 @@ func (s *Scheduler) Reload() error {
 	clocks := map[string]bool{}
 	legacy := false
 	for _, task := range snapshot.Tasks {
-		if task.IsOnce() {
+		if task.IsOnce() || task.Disabled {
 			continue
 		}
 		times := taskTimes(task, snapshot.Crontab)

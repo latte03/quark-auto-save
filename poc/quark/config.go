@@ -49,7 +49,13 @@ type Task struct {
 	UpdateSubdir           string
 	UpdateSubdirResaveMode bool
 	IgnoreExtension        bool
-	ShareURLBan            string
+	// DownloadOnly turns the task into a cloud-to-NAS sync: SavePath is the
+	// cloud source directory and no share transfer happens.
+	DownloadOnly bool
+	// Disabled pauses a task: it leaves the scheduler and "run everything",
+	// but can still be run by hand.
+	Disabled    bool
+	ShareURLBan string
 	LocalDownload          *TaskDownload
 	Addition               json.RawMessage
 	raw                    map[string]json.RawMessage
@@ -361,6 +367,8 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.OnceDoneAt = stringField(m, "once_done_at")
 	t.IgnoreExtension = boolField(m, "ignore_extension")
 	t.UpdateSubdirResaveMode = boolField(m, "update_subdir_resave_mode")
+	t.DownloadOnly = boolField(m, "download_only")
+	t.Disabled = boolField(m, "disabled")
 	t.Addition = m["addition"]
 	if value, ok := m["local_download"]; ok {
 		var download TaskDownload
@@ -401,6 +409,8 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 	setString(m, "shareurl_ban", t.ShareURLBan)
 	setBool(m, "ignore_extension", t.IgnoreExtension)
 	setBool(m, "update_subdir_resave_mode", t.UpdateSubdirResaveMode)
+	setBool(m, "download_only", t.DownloadOnly)
+	setBool(m, "disabled", t.Disabled)
 	// Empty values are dropped so switching back to the scheduled mode does
 	// not leave stale keys in the config.
 	if t.Mode != "" {
@@ -499,7 +509,7 @@ func (t *Task) RemoveFields(names ...string) {
 // StripDerivedFields drops every key the API computes per request, so a task
 // echoed back from the console never persists derived values into config.json.
 func (t *Task) StripDerivedFields() {
-	t.RemoveFields("index", "status", "latest", "next_run", "next_run_at", "progress")
+	t.RemoveFields("index", "status", "latest", "next_run", "next_run_at", "progress", "magic_name")
 }
 
 // IsScheduled mirrors is_time(): the end date is inclusive and runweek uses

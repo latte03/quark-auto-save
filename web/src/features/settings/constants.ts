@@ -1,5 +1,6 @@
 import {
   Bell,
+  Bot,
   Cookie,
   FileText,
   HardDrive,
@@ -18,7 +19,8 @@ export type SettingsSection =
   | "download"
   | "plugins"
   | "magic"
-  | "source";
+  | "source"
+  | "access";
 
 export const sections: {
   id: SettingsSection;
@@ -34,6 +36,7 @@ export const sections: {
   { id: "plugins", label: "插件", icon: Plug, description: "媒体库与下载" },
   { id: "magic", label: "魔法正则", icon: Sparkles, description: "命名规则" },
   { id: "source", label: "搜索源", icon: Search, description: "CloudSaver / PanSou" },
+  { id: "access", label: "外部接入", icon: Bot, description: "MCP 与 API token" },
 ];
 
 export const pushLabels: Record<string, string> = {

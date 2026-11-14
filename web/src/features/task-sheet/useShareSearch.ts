@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { searchShares } from "../../lib/api";
 import type { SearchResult } from "../../lib/types";
 
-export function useShareSearch(open: boolean, searchReady: boolean) {
+export function useShareSearch(
+  open: boolean,
+  searchReady: boolean,
+  initialShow = false,
+) {
   const [show, setShow] = useState(false);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchResult[]>([]);
@@ -13,12 +17,12 @@ export function useShareSearch(open: boolean, searchReady: boolean) {
 
   useEffect(() => {
     if (!open) return;
-    setShow(false);
+    setShow(initialShow);
     setQuery("");
     setHits([]);
     setMessages([]);
     setPreviewHit(null);
-  }, [open]);
+  }, [open, initialShow]);
 
   useEffect(() => {
     if (!show) return;

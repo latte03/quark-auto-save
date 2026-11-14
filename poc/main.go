@@ -27,8 +27,6 @@ func main() {
 		cmdNotifyTest(os.Args[2:])
 	case "serve":
 		cmdServe(os.Args[2:])
-	case "mcp":
-		cmdMCP(os.Args[2:])
 	case "dump":
 		cmdDump(os.Args[2:])
 	case "-h", "--help", "help":
@@ -51,8 +49,7 @@ func usage() {
   run      按配置执行任务与插件（默认演练，加 -write 才执行）
   sign     验证账号并领取每日空间
   notify-test 用 push_config 发送一条测试通知
-  serve    启动 Web 控制台（REST + SSE，托管前端构建产物）
-  mcp      以 MCP stdio 服务运行，供 Claude / Cursor 等客户端连接
+  serve    启动 Web 控制台（REST + SSE + MCP HTTP 端点，托管前端构建产物）
   dump     把真实任务的分享与目标目录抓成离线夹具（只读）
 
 示例:
@@ -64,7 +61,6 @@ func usage() {
   go run . sign -config ../config/quark_config.json -notify=false
   go run . notify-test -config ../config/quark_config.json
   go run . serve -config ../config/quark_config.json -addr 127.0.0.1:8710
-  go run . mcp -config ../config/quark_config.json -base-url http://127.0.0.1:8710
   go run . dump -tasks 1,2 -out quark/testdata/real_tasks.json
 
 插件可用 PLUGIN_FLAGS 环境变量排除，例如 PLUGIN_FLAGS=-alist,-aria2。

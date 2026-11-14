@@ -110,12 +110,12 @@ func intList(field string, max int) ([]int, bool) {
 }
 
 // dueTaskIndices selects tasks whose clock time matches at and whose weekday
-// and end date allow a run.
+// and end date allow a run. Disabled tasks stay out of the schedule entirely.
 func dueTaskIndices(tasks []*quark.Task, crontab string, at time.Time) []int {
 	clock := at.Format("15:04")
 	var indices []int
 	for index, task := range tasks {
-		if task.IsOnce() {
+		if task.IsOnce() || task.Disabled {
 			continue
 		}
 		times := taskTimes(task, crontab)
@@ -144,7 +144,7 @@ func containsTime(times []string, clock string) bool {
 func legacyTaskIndices(tasks []*quark.Task, crontab string, at time.Time) []int {
 	var indices []int
 	for index, task := range tasks {
-		if task.IsOnce() || len(taskTimes(task, crontab)) > 0 {
+		if task.IsOnce() || task.Disabled || len(taskTimes(task, crontab)) > 0 {
 			continue
 		}
 		if scheduled, err := task.IsScheduled(at); err != nil || !scheduled {
@@ -157,7 +157,7 @@ func legacyTaskIndices(tasks []*quark.Task, crontab string, at time.Time) []int 
 
 // nextTimesForTask lists the upcoming fire times for one task.
 func nextTimesForTask(task *quark.Task, crontab string, now time.Time, limit int) []time.Time {
-	if task.IsOnce() {
+	if task.IsOnce() || task.Disabled {
 		return nil
 	}
 	times := taskTimes(task, crontab)

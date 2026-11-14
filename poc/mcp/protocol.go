@@ -1,20 +1,26 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"strings"
-	"sync"
 )
 
 const (
 	serverName      = "qas"
 	protocolVersion = "2025-06-18"
 )
+
+// supportedVersions lists the protocol revisions this server can speak;
+// negotiate falls back to protocolVersion for anything else.
+var supportedVersions = map[string]bool{
+	"2025-06-18": true,
+	"2025-03-26": true,
+	"2024-11-05": true,
+}
 
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -65,15 +71,9 @@ type Server struct {
 	version  string
 	readOnly bool
 	logger   *log.Logger
-	out      io.Writer
 
 	tools     []*Tool
 	toolIndex map[string]*Tool
-	outMu     sync.Mutex
-	wg        sync.WaitGroup
-
-	cancelMu sync.Mutex
-	cancels  map[string]context.CancelFunc
 }
 
 func New(api *Client, opts Options) *Server {
@@ -90,106 +90,13 @@ func New(api *Client, opts Options) *Server {
 		version:   version,
 		readOnly:  opts.ReadOnly,
 		logger:    logger,
-		out:       io.Discard,
 		toolIndex: map[string]*Tool{},
-		cancels:   map[string]context.CancelFunc{},
 	}
 	server.tools = server.buildTools()
 	for _, tool := range server.tools {
 		server.toolIndex[tool.Name] = tool
 	}
 	return server
-}
-
-// Serve speaks newline-delimited JSON-RPC over the given reader and writes
-// responses to out. Only protocol traffic goes to stdout; logs go to Logger.
-func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
-	s.out = out
-	decoder := json.NewDecoder(in)
-	for {
-		var raw json.RawMessage
-		if err := decoder.Decode(&raw); err != nil {
-			if err == io.EOF {
-				s.wg.Wait()
-				return nil
-			}
-			return err
-		}
-		s.dispatch(ctx, raw)
-	}
-}
-
-func (s *Server) dispatch(ctx context.Context, raw json.RawMessage) {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 {
-		return
-	}
-	if trimmed[0] == '[' {
-		var batch []json.RawMessage
-		if err := json.Unmarshal(trimmed, &batch); err != nil {
-			s.write(rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "解析失败"}})
-			return
-		}
-		for _, item := range batch {
-			s.dispatchOne(ctx, item)
-		}
-		return
-	}
-	s.dispatchOne(ctx, trimmed)
-}
-
-func (s *Server) dispatchOne(ctx context.Context, raw json.RawMessage) {
-	var request rpcRequest
-	if err := json.Unmarshal(raw, &request); err != nil {
-		s.write(rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "解析失败"}})
-		return
-	}
-	if request.Method == "" {
-		s.write(rpcResponse{JSONRPC: "2.0", ID: request.ID, Error: &rpcError{Code: -32600, Message: "无效请求"}})
-		return
-	}
-	if len(request.ID) == 0 || string(request.ID) == "null" {
-		s.handleNotification(request)
-		return
-	}
-
-	requestCtx, cancel := context.WithCancel(ctx)
-	key := string(request.ID)
-	s.cancelMu.Lock()
-	s.cancels[key] = cancel
-	s.cancelMu.Unlock()
-
-	s.wg.Add(1)
-	go func() {
-		defer func() {
-			s.wg.Done()
-			cancel()
-			s.cancelMu.Lock()
-			delete(s.cancels, key)
-			s.cancelMu.Unlock()
-		}()
-		if response := s.Handle(requestCtx, request); response != nil {
-			s.write(response)
-		}
-	}()
-}
-
-func (s *Server) handleNotification(request rpcRequest) {
-	if request.Method != "notifications/cancelled" {
-		return
-	}
-	var params struct {
-		RequestID json.RawMessage `json:"requestId"`
-	}
-	if err := json.Unmarshal(request.Params, &params); err != nil {
-		return
-	}
-	s.cancelMu.Lock()
-	cancel := s.cancels[string(params.RequestID)]
-	s.cancelMu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
 }
 
 // Handle executes one request synchronously; Serve calls it from a goroutine.
@@ -253,7 +160,7 @@ func (s *Server) negotiate(raw json.RawMessage) string {
 	var params struct {
 		ProtocolVersion string `json:"protocolVersion"`
 	}
-	if err := json.Unmarshal(raw, &params); err == nil && params.ProtocolVersion != "" {
+	if err := json.Unmarshal(raw, &params); err == nil && supportedVersions[params.ProtocolVersion] {
 		return params.ProtocolVersion
 	}
 	return protocolVersion
@@ -303,14 +210,4 @@ func errorResult(message string) toolResult {
 		message = "未知错误"
 	}
 	return toolResult{Content: []contentItem{{Type: "text", Text: message}}, IsError: true}
-}
-
-func (s *Server) write(response any) {
-	s.outMu.Lock()
-	defer s.outMu.Unlock()
-	encoder := json.NewEncoder(s.out)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(response); err != nil {
-		s.logger.Printf("写响应失败: %v", err)
-	}
 }

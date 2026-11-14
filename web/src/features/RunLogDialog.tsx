@@ -116,7 +116,7 @@ export function RunLogDialog({
           <div className="flex items-center justify-between border-b border-slate-800 bg-[#0b1220] px-4 py-2">
             <div className="flex items-center gap-2 font-mono text-[12px] tracking-[0.06em] text-slate-400">
               <span
-                className={`h-1.5 w-1.5 rounded-full ${running ? "bg-emerald-400" : "bg-slate-500"}`}
+                className={`h-1.5 w-1.5 rounded-full ${running ? "animate-pulse-live bg-emerald-400" : "bg-slate-500"}`}
               />
               qas serve · run
             </div>

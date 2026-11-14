@@ -25,6 +25,13 @@ func (s *Server) apiToken(username, password string) string {
 	return APIKey(username, password)
 }
 
+// derivedAPIToken recomputes the bearer token on every call so the in-process
+// MCP client keeps working after the WebUI credentials change.
+func (s *Server) derivedAPIToken() string {
+	username, password := s.store.WebUI()
+	return s.apiToken(username, password)
+}
+
 func (s *Server) sessionValue(username, password string) string {
 	expiry := time.Now().Add(31 * 24 * time.Hour).Unix()
 	payload := strconv.FormatInt(expiry, 10)

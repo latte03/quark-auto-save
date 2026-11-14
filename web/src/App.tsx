@@ -16,6 +16,7 @@ import { ToastProvider } from "./components/ToastProvider";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { useBeforeUnload } from "./hooks/use-before-unload";
 import { useConsoleSession } from "./hooks/useConsoleSession";
+import { useHashRoute } from "./hooks/useHashRoute";
 import { useRunController } from "./hooks/useRunController";
 import { useSettingsDraft } from "./hooks/useSettingsDraft";
 import { useTaskCollection } from "./hooks/useTaskCollection";
@@ -32,22 +33,34 @@ import { DeleteTaskDialog } from "./features/DeleteTaskDialog";
 // Everything except the landing page loads on first visit, so the initial
 // bundle stays close to the shell.
 const TasksPage = lazy(() =>
-  import("./features/TasksPage").then((module) => ({ default: module.TasksPage })),
+  import("./features/TasksPage").then((module) => ({
+    default: module.TasksPage,
+  })),
 );
 const FilesPage = lazy(() =>
-  import("./features/FilesPage").then((module) => ({ default: module.FilesPage })),
+  import("./features/FilesPage").then((module) => ({
+    default: module.FilesPage,
+  })),
 );
 const RunsPage = lazy(() =>
-  import("./features/RunsPage").then((module) => ({ default: module.RunsPage })),
+  import("./features/RunsPage").then((module) => ({
+    default: module.RunsPage,
+  })),
 );
 const SettingsPage = lazy(() =>
-  import("./features/SettingsPage").then((module) => ({ default: module.SettingsPage })),
+  import("./features/SettingsPage").then((module) => ({
+    default: module.SettingsPage,
+  })),
 );
 const TaskSheet = lazy(() =>
-  import("./features/TaskSheet").then((module) => ({ default: module.TaskSheet })),
+  import("./features/TaskSheet").then((module) => ({
+    default: module.TaskSheet,
+  })),
 );
 const RunLogDialog = lazy(() =>
-  import("./features/RunLogDialog").then((module) => ({ default: module.RunLogDialog })),
+  import("./features/RunLogDialog").then((module) => ({
+    default: module.RunLogDialog,
+  })),
 );
 
 import { ApiError, getConfig, getSession, getTasks, login } from "./lib/api";
@@ -67,18 +80,43 @@ export default function App() {
     signOut,
   } = useConsoleSession();
 
-  const [page, setPage] = useState<Page>("overview");
+  const {
+    route,
+    navigate: navigateHash,
+    consumeRunId,
+    reset: resetRoute,
+  } = useHashRoute();
+  const page = route.page;
+
+  // 侧边栏宽度：拖拽 Rail 调整，localStorage 持久化（防抖落盘）。
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = Number(localStorage.getItem("qas-sidebar-width"));
+    return stored >= 180 && stored <= 400 ? stored : 232;
+  });
+  const changeSidebarWidth = useCallback((width: number) => {
+    setSidebarWidth(Math.min(400, Math.max(180, width)));
+  }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => localStorage.setItem("qas-sidebar-width", String(sidebarWidth)),
+      300,
+    );
+    return () => window.clearTimeout(timer);
+  }, [sidebarWidth]);
   const [leaveTarget, setLeaveTarget] = useState<Page | null>(null);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>("all");
   const [query, setQuery] = useState("");
-  const [taskSheet, setTaskSheet] = useState<{ open: boolean; task: Task | null }>({
-    open: false,
-    task: null,
-  });
+  const [taskSheet, setTaskSheet] = useState<{
+    open: boolean;
+    task: Task | null;
+    autoSearch?: boolean;
+  }>({ open: false, task: null });
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const taskStore = useTaskCollection(Boolean(session?.authenticated) && page === "tasks");
+  const taskStore = useTaskCollection(
+    Boolean(session?.authenticated) && page === "tasks",
+  );
   const runs = useRunController({
     notify,
     refreshTasks: taskStore.refresh,
@@ -87,9 +125,19 @@ export default function App() {
   const settings = useSettingsDraft();
   const config = settings.config;
 
-  const { apply: applyTasks, refresh: refreshTasks, save: saveTask, remove: removeTask } =
-    taskStore;
-  const { runTasks, runInline, runSign, attach: attachRun, loadLatest: loadLatestRun } = runs;
+  const {
+    apply: applyTasks,
+    refresh: refreshTasks,
+    save: saveTask,
+    remove: removeTask,
+  } = taskStore;
+  const {
+    runTasks,
+    runInline,
+    runSign,
+    attach: attachRun,
+    loadLatest: loadLatestRun,
+  } = runs;
   const { load: loadConfig, clear: clearConfig } = settings;
 
   const booted = useRef(false);
@@ -159,10 +207,10 @@ export default function App() {
     setDeleteTarget(null);
     setDeleting(false);
     setLeaveTarget(null);
-    setPage("overview");
+    resetRoute();
     setTaskFilter("all");
     setQuery("");
-  }, [clearConfig, clearTasks, resetRuns, session?.authenticated]);
+  }, [clearConfig, clearTasks, resetRoute, resetRuns, session?.authenticated]);
 
   useEffect(() => {
     const el = contentRef.current;
@@ -190,10 +238,16 @@ export default function App() {
   };
 
   const openTask = (task: Task) => setTaskSheet({ open: true, task });
+  // 失效任务的修复入口直接展开搜索面板，少一步。
+  const repairTask = (task: Task) =>
+    setTaskSheet({ open: true, task, autoSearch: true });
   const openNewTask = () => setTaskSheet({ open: true, task: null });
   const handleDelete = (task: Task) => setDeleteTarget(task);
 
-  const handleSave = async (next: Task, runAfter: boolean): Promise<boolean> => {
+  const handleSave = async (
+    next: Task,
+    runAfter: boolean,
+  ): Promise<boolean> => {
     const previous = taskSheet.task;
     let savedIndex: number | null = null;
     try {
@@ -230,6 +284,16 @@ export default function App() {
     }
   };
 
+  // 行内启停：停用的任务离开调度器与「运行全部」，仍可手动运行。
+  const toggleTask = async (task: Task, disabled: boolean) => {
+    try {
+      await saveTask(task, { ...task, disabled });
+      notify(disabled ? "任务已停用，不再参与定时调度" : "任务已启用", "ok");
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "操作失败", "error");
+    }
+  };
+
   const handleSettingsSave = async () => {
     await settings.save();
     // 配置已经落盘；任务列表刷新失败不该把这次保存报成失败。
@@ -247,9 +311,9 @@ export default function App() {
         setLeaveTarget(next);
         return;
       }
-      setPage(next);
+      navigateHash(next);
     },
-    [page, settingsDirty],
+    [navigateHash, page, settingsDirty],
   );
 
   const goTasks = (filter: TaskFilter = "all") => {
@@ -279,10 +343,10 @@ export default function App() {
   const cloudSaver = config?.source.cloudsaver;
   const cloudReady = Boolean(
     cloudSaver &&
-      cloudSaver.enable &&
-      cloudSaver.server.trim() &&
-      (cloudSaver.token.trim() ||
-        (cloudSaver.username.trim() && cloudSaver.password.trim())),
+    cloudSaver.enable &&
+    cloudSaver.server.trim() &&
+    (cloudSaver.token.trim() ||
+      (cloudSaver.username.trim() && cloudSaver.password.trim())),
   );
   const panReady = Boolean(
     config?.source.pansou.enable && config.source.pansou.server.trim(),
@@ -293,20 +357,21 @@ export default function App() {
     <TooltipProvider delay={220}>
       <ToastProvider notify={notify}>
         <SidebarProvider
-          className="h-svh overflow-hidden bg-canvas"
-          style={{ "--sidebar-width": "232px" } as CSSProperties}
+          className="h-svh overflow-hidden bg-backdrop"
+          style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
         >
+          {/* Floating Island 外壳：侧边栏与内容是两座独立的悬浮岛，
+              各自带 12px 外边距、圆角与阴影；背后的 backdrop 负责留白。 */}
           <AppSidebar
             page={page}
-            taskCount={tasks.length}
             bannedCount={bannedCount}
             username={session.username}
-            version={session.version}
             onNavigate={navigate}
             onLogout={handleLogout}
+            onSidebarResize={changeSidebarWidth}
           />
 
-          <SidebarInset className="h-svh min-w-0 flex-col overflow-hidden bg-canvas">
+          <SidebarInset className="min-w-0 flex-col overflow-hidden bg-canvas md:m-3 md:rounded-shell md:border md:border-line md:shadow-shell">
             <Topbar
               search={page === "tasks" ? query : null}
               onSearch={setQuery}
@@ -316,7 +381,8 @@ export default function App() {
             />
 
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-3 py-4 sm:px-4 lg:px-7 lg:py-5">
+              {/* 顶部悬浮工具条占用 8+48px，内容再留 12px 呼吸 */}
+              <div className="px-3 pt-[68px] pb-4 sm:px-4 lg:px-7 lg:pt-[76px] lg:pb-5">
                 <div ref={contentRef} className="mx-auto w-full max-w-[1320px]">
                   <Suspense
                     fallback={
@@ -332,10 +398,12 @@ export default function App() {
                         latestRun={runs.latestRun}
                         onOpenTask={openTask}
                         onRunTask={(task) =>
-                          task.index != null && void runTasks([task.index], true)
+                          task.index != null &&
+                          void runTasks([task.index], true)
                         }
                         onDeleteTask={handleDelete}
-                        onRepairTask={openTask}
+                        onRepairTask={repairTask}
+                        onToggleTask={toggleTask}
                         onOpenLog={() => void runs.openLog()}
                         onRunAll={() => void runTasks([], true)}
                         onGoTasks={goTasks}
@@ -351,10 +419,12 @@ export default function App() {
                         onQueryChange={setQuery}
                         onOpenTask={openTask}
                         onRunTask={(task) =>
-                          task.index != null && void runTasks([task.index], true)
+                          task.index != null &&
+                          void runTasks([task.index], true)
                         }
                         onDeleteTask={handleDelete}
-                        onRepairTask={openTask}
+                        onRepairTask={repairTask}
+                        onToggleTask={toggleTask}
                       />
                     ) : null}
 
@@ -363,6 +433,8 @@ export default function App() {
                     {page === "runs" ? (
                       <RunsPage
                         running={runs.running}
+                        initialRunId={route.runId}
+                        onConsumeRunId={consumeRunId}
                         onOpenActive={() => void runs.openLog()}
                       />
                     ) : null}
@@ -402,11 +474,12 @@ export default function App() {
             searchReady={searchReady}
             onOpenSettings={() => {
               setTaskSheet({ open: false, task: null });
-              setPage("settings");
+              navigateHash("settings");
             }}
             onSave={handleSave}
             onTry={runInline}
             onDelete={handleDelete}
+            initialSearch={taskSheet.autoSearch}
           />
         </Suspense>
 
@@ -442,7 +515,7 @@ export default function App() {
             const target = leaveTarget;
             setLeaveTarget(null);
             if (settings.savedConfig) settings.update(settings.savedConfig);
-            if (target) setPage(target);
+            if (target) navigateHash(target);
           }}
         />
       </ToastProvider>

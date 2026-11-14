@@ -1090,6 +1090,99 @@ func TestAPIKeyMatchesLoginToken(t *testing.T) {
 	}
 }
 
+// ---------- MCP endpoint ----------
+
+func mcpCall(t *testing.T, client *http.Client, url, token, body string) (*http.Response, []byte) {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodPost, url+"/mcp", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response, raw
+}
+
+func TestMCPEndpoint(t *testing.T) {
+	instance, ts := newTestServer(t)
+	username, password := instance.store.WebUI()
+	token := APIKey(username, password)
+	anon := &http.Client{Timeout: 5 * time.Second}
+
+	// Anonymous requests are rejected by the shared auth wrapper.
+	response, _ := mcpCall(t, anon, ts.URL, "", `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("anonymous /mcp = %d, want 401", response.StatusCode)
+	}
+
+	client := loginClient(t, ts.URL)
+	session := &http.Client{Timeout: 5 * time.Second, Jar: client.Jar}
+	response, raw := mcpCall(t, session, ts.URL, "", `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("session initialize = %d: %s", response.StatusCode, raw)
+	}
+
+	response, raw = mcpCall(t, anon, ts.URL, token, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("tools/list = %d: %s", response.StatusCode, raw)
+	}
+	var list struct {
+		Result struct {
+			Tools []struct{ Name string } `json:"tools"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &list); err != nil {
+		t.Fatalf("tools/list body = %s", raw)
+	}
+	if len(list.Result.Tools) == 0 {
+		t.Fatalf("tools empty: %s", raw)
+	}
+
+	response, raw = mcpCall(t, anon, ts.URL, token, `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_status","arguments":{}}}`)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("get_status = %d: %s", response.StatusCode, raw)
+	}
+	var call struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+			IsError bool `json:"isError"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &call); err != nil {
+		t.Fatalf("get_status body = %s", raw)
+	}
+	if call.Result.IsError || len(call.Result.Content) == 0 || !strings.Contains(call.Result.Content[0].Text, "task_count") {
+		t.Fatalf("get_status result = %s", raw)
+	}
+
+	// Non-POST methods answer 405 (stateless server, no SSE stream).
+	getRequest, err := http.NewRequest(http.MethodGet, ts.URL+"/mcp?token="+token, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	getResponse, err := anon.Do(getRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	getResponse.Body.Close()
+	if getResponse.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET /mcp = %d, want 405", getResponse.StatusCode)
+	}
+}
+
 func TestOnceRunIgnoresLeftoverSchedule(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

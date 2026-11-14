@@ -1,6 +1,8 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import {
+  CloudUpload,
   FolderOpen,
+  HardDrive,
   Link2,
   Loader2,
   Plus,
@@ -17,6 +19,7 @@ import {
 } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
 import { SwitchField } from "../../components/SwitchField";
+import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { useToast } from "../../components/ToastProvider";
 import { LocalDirDialog } from "../LocalDirDialog";
 import { sectionTitle } from "./constants";
@@ -35,7 +38,9 @@ export function BasicInfoSection() {
   const notify = useToast();
   const [pickingLocal, setPickingLocal] = useState(false);
   const [localPickerOpen, setLocalPickerOpen] = useState(false);
-  const downloadDirId = useId();
+  // 固定 id 供表单校验失败时 scrollIntoView 定位。
+  const downloadDirId = "download-dir";
+  const downloadOnly = Boolean(draft.download_only);
 
   const pickLocalDirectory = async () => {
     setPickingLocal(true);
@@ -59,7 +64,7 @@ export function BasicInfoSection() {
 
   return (
     <section className="space-y-3">
-      {draft.shareurl_ban ? (
+      {!downloadOnly && draft.shareurl_ban ? (
         <div className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft px-3 py-2.5 text-danger">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="min-w-0 flex-1 text-[12px] leading-5">
@@ -78,18 +83,63 @@ export function BasicInfoSection() {
 
       <div className="flex items-center justify-between">
         <h3 className={sectionTitle}>基本信息</h3>
-        <Badge
-          variant={
-            link.state === "bad" ? "danger" : link.state === "ok" ? "ok" : "neutral"
-          }
-        >
-          {link.state === "bad"
-            ? "链接异常"
-            : link.state === "ok"
-              ? "链接有效"
-              : "未验证"}
-        </Badge>
+        {downloadOnly ? null : (
+          <Badge
+            variant={
+              link.state === "bad"
+                ? "danger"
+                : link.state === "ok"
+                  ? "ok"
+                  : "neutral"
+            }
+          >
+            {link.state === "bad"
+              ? "链接异常"
+              : link.state === "ok"
+                ? "链接有效"
+                : "未验证"}
+          </Badge>
+        )}
       </div>
+      <Field>
+        <FieldLabel>任务类型</FieldLabel>
+        <Tabs
+          value={downloadOnly ? "download" : "transfer"}
+          onValueChange={(value) => {
+            const next = value === "download";
+            update("download_only", next);
+            if (next) {
+              // 仅下载任务强制开启本地下载，目录就是它的落点。
+              update("local_download", {
+                ...(draft.local_download ?? {}),
+                enable: true,
+              });
+            }
+          }}
+        >
+          <TabsList className="w-full">
+            <TabsTrigger
+              value="transfer"
+              className="text-[12px]"
+              icon={<CloudUpload />}
+            >
+              转存任务
+            </TabsTrigger>
+            <TabsTrigger
+              value="download"
+              className="text-[12px]"
+              icon={<HardDrive />}
+            >
+              仅下载
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <FieldDescription>
+          {downloadOnly
+            ? "不填分享链接：定时扫描网盘源目录，把本地缺少的文件下载到 NAS。"
+            : "按分享链接转存新文件到网盘保存目录，可选下载到 NAS。"}
+        </FieldDescription>
+      </Field>
       <Field>
         <FieldLabel htmlFor="taskname">任务名称</FieldLabel>
         <Input
@@ -99,46 +149,48 @@ export function BasicInfoSection() {
           placeholder="例如：黑镜"
         />
       </Field>
-      <Field>
-        <FieldLabel htmlFor="shareurl">分享链接</FieldLabel>
-        <div className="flex items-center gap-1.5">
-          <Input
-            id="shareurl"
-            value={draft.shareurl}
-            onChange={(event) => {
-              update("shareurl", event.target.value);
-              link.reset();
-            }}
-            placeholder="https://pan.quark.cn/s/..."
-          />
-          <Button
-            variant="secondary"
-            size="icon"
-            aria-label="验证链接"
-            disabled={link.validating}
-            onClick={() => void link.validate(draft.shareurl)}
-          >
-            {link.validating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Link2 className="h-3.5 w-3.5" />
-            )}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => search.setShow(true)}
-          >
-            <Search className="h-3.5 w-3.5" />
-            搜索
-          </Button>
-        </div>
-        <FieldDescription>
-          支持子目录链接与提取码链接。链接失效时，任务会被标记并跳过转存。
-        </FieldDescription>
-      </Field>
+      {downloadOnly ? null : (
+        <Field>
+          <FieldLabel htmlFor="shareurl">分享链接</FieldLabel>
+          <div className="flex items-center gap-1.5">
+            <Input
+              id="shareurl"
+              value={draft.shareurl}
+              onChange={(event) => {
+                update("shareurl", event.target.value);
+                link.reset();
+              }}
+              placeholder="https://pan.quark.cn/s/..."
+            />
+            <Button
+              variant="secondary"
+              size="icon"
+              aria-label="验证链接"
+              disabled={link.validating}
+              onClick={() => void link.validate(draft.shareurl)}
+            >
+              {link.validating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Link2 className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => search.setShow(true)}
+            >
+              <Search className="h-3.5 w-3.5" />
+              搜索
+            </Button>
+          </div>
+          <FieldDescription>
+            支持子目录链接与提取码链接。链接失效时，任务会被标记并跳过转存。
+          </FieldDescription>
+        </Field>
+      )}
 
-      {search.show ? (
+      {!downloadOnly && search.show ? (
         <div className="rounded-md border border-line bg-line-soft/40 p-3">
           {!searchReady ? (
             <div className="flex items-start gap-2.5">
@@ -237,13 +289,15 @@ export function BasicInfoSection() {
       ) : null}
 
       <Field>
-        <FieldLabel htmlFor="savepath">保存路径</FieldLabel>
+        <FieldLabel htmlFor="savepath">
+          {downloadOnly ? "网盘源目录" : "保存路径"}
+        </FieldLabel>
         <div className="flex items-center gap-1.5">
           <Input
             id="savepath"
             value={draft.savepath}
             onChange={(event) => update("savepath", event.target.value)}
-            placeholder="/video/tv/..."
+            placeholder={downloadOnly ? "/video/tv/已有目录" : "/video/tv/..."}
           />
           <Button
             variant="secondary"
@@ -254,19 +308,26 @@ export function BasicInfoSection() {
             选择
           </Button>
         </div>
+        {downloadOnly ? (
+          <FieldDescription>
+            要同步到本地的网盘目录，递归扫描其中的文件。
+          </FieldDescription>
+        ) : null}
       </Field>
-      <SwitchField
-        label="下载到 NAS"
-        description="转存后把云端保存目录里本地缺少的文件拉取到本地目录。"
-        checked={Boolean(draft.local_download?.enable)}
-        onCheckedChange={(checked) =>
-          update("local_download", {
-            ...(draft.local_download ?? {}),
-            enable: checked,
-          })
-        }
-      />
-      {draft.local_download?.enable ? (
+      {downloadOnly ? null : (
+        <SwitchField
+          label="下载到 NAS"
+          description="转存后把云端保存目录里本地缺少的文件拉取到本地目录。"
+          checked={Boolean(draft.local_download?.enable)}
+          onCheckedChange={(checked) =>
+            update("local_download", {
+              ...(draft.local_download ?? {}),
+              enable: checked,
+            })
+          }
+        />
+      )}
+      {downloadOnly || draft.local_download?.enable ? (
         <>
           <Field>
             <FieldLabel htmlFor={downloadDirId}>下载目录</FieldLabel>
