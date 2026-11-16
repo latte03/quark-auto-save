@@ -88,8 +88,9 @@ func (q *downloadQueue) transfer(job *downloadJob, ctx context.Context, item dow
 		job.addProgress(delta)
 	}
 
-	// Quark throttles each connection to roughly 100KB/s, so large files are
-	// split into parallel ranges; the total scales with the stream count.
+	// Large files take the segmented path: the CDN throttles a request that
+	// declares a big byte range, so the workers ask for bounded spans and the
+	// total scales with the number of workers.
 	var size int64
 	if item.Size >= segmentThreshold {
 		err = q.fetchSegmented(ctx, url, cookies, ua, target, item.Size, onProgress)

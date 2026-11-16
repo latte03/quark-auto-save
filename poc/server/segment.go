@@ -12,9 +12,13 @@ import (
 	"time"
 )
 
-// Quark throttles a single download connection to roughly 100KB/s and the
-// account total scales with the number of connections, so large files are
-// fetched as parallel byte ranges.
+// Quark throttles a single download request to roughly 100KB/s when the range
+// it declares is large, so a file is fetched as parallel byte ranges. The span
+// of each individual request matters more than the connection count: measured
+// on one file with one cookie, a request declaring 900MB crawled at 0.09MiB/s
+// while 8-256MB spans on the same URL ran at 5-9MiB/s. Segment workers
+// therefore walk their segment in spans of segmentRequestSpan, and the segment
+// count is the parallelism knob.
 const (
 	segmentThreshold   = 64 << 20
 	segmentLargeSize   = 1 << 30
@@ -23,6 +27,10 @@ const (
 	segmentMinSize     = 4 << 20
 	segmentStateSuffix = ".json"
 )
+
+// segmentRequestSpan is the largest byte range one HTTP request asks for. It is
+// a variable so tests can shrink it instead of moving 64MB per case.
+var segmentRequestSpan int64 = 64 << 20
 
 // errRangeUnsupported lets the caller fall back to one whole-file stream.
 var errRangeUnsupported = errors.New("下载地址不支持分段请求")
@@ -225,13 +233,41 @@ func (q *downloadQueue) fetchSegment(ctx context.Context, url, cookie, ua string
 	offset := segment.Start + segment.Done
 	end := segment.End
 	mu.Unlock()
-	if offset > end {
-		return nil
-	}
 
+	span := segmentRequestSpan
+	if span <= 0 {
+		span = 64 << 20
+	}
+	for offset <= end {
+		// Ask for a bounded slice of this segment: the CDN serves a request
+		// with a huge declared span from a heavily throttled path, so a segment
+		// of a 20GB file must not be requested in one call.
+		chunkEnd := min(end, offset+span-1)
+		written, err := q.fetchSpan(ctx, url, cookie, ua, file, offset, chunkEnd, func(delta int64) {
+			mu.Lock()
+			segment.Done += delta
+			mu.Unlock()
+			if onProgress != nil {
+				onProgress(delta)
+			}
+		})
+		if err != nil {
+			return err
+		}
+		if written <= 0 {
+			return fmt.Errorf("分段提前结束")
+		}
+		offset += written
+	}
+	return nil
+}
+
+// fetchSpan requests one bounded byte range and writes it at offset, reporting
+// each chunk as it lands. It returns the bytes written.
+func (q *downloadQueue) fetchSpan(ctx context.Context, url, cookie, ua string, file *os.File, offset, end int64, report func(int64)) (int64, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return fmt.Errorf("构造请求失败: %w", err)
+		return 0, fmt.Errorf("构造请求失败: %w", err)
 	}
 	if cookie != "" {
 		request.Header.Set("Cookie", cookie)
@@ -242,49 +278,49 @@ func (q *downloadQueue) fetchSegment(ctx context.Context, url, cookie, ua string
 	request.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", offset, end))
 	response, err := q.http.Do(request)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer response.Body.Close()
 	switch response.StatusCode {
 	case http.StatusPartialContent:
 	case http.StatusOK:
-		return errRangeUnsupported
+		return 0, errRangeUnsupported
 	case http.StatusRequestedRangeNotSatisfiable:
-		return fmt.Errorf("分段请求被拒绝")
+		return 0, fmt.Errorf("分段请求被拒绝")
 	default:
-		return fmt.Errorf("下载失败: HTTP %d", response.StatusCode)
+		return 0, fmt.Errorf("下载失败: HTTP %d", response.StatusCode)
 	}
 
+	var written int64
+	cursor := offset
 	buffer := make([]byte, 256*1024)
-	for offset <= end {
+	for cursor <= end {
 		// 服务端可能忽略 Range 上界整块返回，超出本段的内容必须丢弃，
 		// 否则会覆盖相邻分段并把 Done 计到本段长度之外。
 		chunk := buffer
-		if remaining := end - offset + 1; remaining < int64(len(chunk)) {
+		if remaining := end - cursor + 1; remaining < int64(len(chunk)) {
 			chunk = chunk[:remaining]
 		}
 		n, readErr := response.Body.Read(chunk)
 		if n > 0 {
-			if _, err := file.WriteAt(buffer[:n], offset); err != nil {
-				return fmt.Errorf("写入失败: %w", err)
+			if _, err := file.WriteAt(buffer[:n], cursor); err != nil {
+				return written, fmt.Errorf("写入失败: %w", err)
 			}
-			offset += int64(n)
-			mu.Lock()
-			segment.Done += int64(n)
-			mu.Unlock()
-			if onProgress != nil {
-				onProgress(int64(n))
+			cursor += int64(n)
+			written += int64(n)
+			if report != nil {
+				report(int64(n))
 			}
 		}
 		if readErr != nil {
 			if readErr == io.EOF {
 				break
 			}
-			return readErr
+			return written, readErr
 		}
 	}
-	if offset != end+1 {
-		return fmt.Errorf("分段提前结束")
+	if cursor != end+1 {
+		return written, fmt.Errorf("分段提前结束")
 	}
-	return nil
+	return written, nil
 }

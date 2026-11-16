@@ -200,6 +200,142 @@ func TestFetchSegmentClipsOverlongBody(t *testing.T) {
 	}
 }
 
+// Quark serves a request that declares a huge range from a throttled path, so
+// every worker must ask for bounded spans instead of its whole segment.
+func TestFetchSegmentSplitsIntoBoundedSpans(t *testing.T) {
+	payload := make([]byte, 400<<10)
+	for index := range payload {
+		payload[index] = byte(index % 251)
+	}
+	var mu sync.Mutex
+	var spans [][2]int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start, end := int64(0), int64(len(payload)-1)
+		parts := strings.SplitN(strings.TrimPrefix(r.Header.Get("Range"), "bytes="), "-", 2)
+		if value, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
+			start = value
+		}
+		if len(parts) == 2 && parts[1] != "" {
+			if value, err := strconv.ParseInt(parts[1], 10, 64); err == nil {
+				end = min(value, int64(len(payload)-1))
+			}
+		}
+		mu.Lock()
+		spans = append(spans, [2]int64{start, end})
+		mu.Unlock()
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload)))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(payload[start : end+1])
+	}))
+	t.Cleanup(server.Close)
+
+	original := segmentRequestSpan
+	segmentRequestSpan = 64 << 10
+	t.Cleanup(func() { segmentRequestSpan = original })
+
+	target := filepath.Join(t.TempDir(), "span.bin")
+	file, err := os.Create(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err := file.Truncate(int64(len(payload))); err != nil {
+		t.Fatal(err)
+	}
+
+	var segmentMu sync.Mutex
+	var progress atomic.Int64
+	queue := newDownloadQueue(nil)
+	segment := &segmentProgress{Start: 0, End: int64(len(payload)) - 1}
+	if err := queue.fetchSegment(context.Background(), server.URL, "", "", file, segment, &segmentMu,
+		func(delta int64) { progress.Add(delta) }); err != nil {
+		t.Fatalf("fetchSegment: %v", err)
+	}
+
+	if int64(progress.Load()) != int64(len(payload)) || segment.Done != int64(len(payload)) {
+		t.Fatalf("progress=%d done=%d, want %d", progress.Load(), segment.Done, len(payload))
+	}
+	wantRequests := (int64(len(payload)) + segmentRequestSpan - 1) / segmentRequestSpan
+	if int64(len(spans)) != wantRequests {
+		t.Fatalf("requests = %d, want %d (%v)", len(spans), wantRequests, spans)
+	}
+	for _, span := range spans {
+		if length := span[1] - span[0] + 1; length > segmentRequestSpan {
+			t.Fatalf("span %v exceeds the %d byte limit", span, segmentRequestSpan)
+		}
+	}
+	content, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(content, payload) {
+		t.Fatal("content mismatch")
+	}
+}
+
+// A resumed segment must continue from its own offset, still in bounded spans.
+func TestFetchSegmentResumesInsideSpan(t *testing.T) {
+	payload := make([]byte, 300<<10)
+	for index := range payload {
+		payload[index] = byte(index % 249)
+	}
+	var mu sync.Mutex
+	var firstStart int64 = -1
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start, end := int64(0), int64(len(payload)-1)
+		parts := strings.SplitN(strings.TrimPrefix(r.Header.Get("Range"), "bytes="), "-", 2)
+		if value, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
+			start = value
+		}
+		if len(parts) == 2 && parts[1] != "" {
+			if value, err := strconv.ParseInt(parts[1], 10, 64); err == nil {
+				end = min(value, int64(len(payload)-1))
+			}
+		}
+		mu.Lock()
+		if firstStart < 0 {
+			firstStart = start
+		}
+		mu.Unlock()
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, len(payload)))
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write(payload[start : end+1])
+	}))
+	t.Cleanup(server.Close)
+
+	original := segmentRequestSpan
+	segmentRequestSpan = 64 << 10
+	t.Cleanup(func() { segmentRequestSpan = original })
+
+	target := filepath.Join(t.TempDir(), "resume.bin")
+	file, err := os.Create(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err := file.Truncate(int64(len(payload))); err != nil {
+		t.Fatal(err)
+	}
+
+	var segmentMu sync.Mutex
+	queue := newDownloadQueue(nil)
+	done := int64(100 << 10)
+	segment := &segmentProgress{Start: 0, End: int64(len(payload)) - 1, Done: done}
+	if err := queue.fetchSegment(context.Background(), server.URL, "", "", file, segment, &segmentMu, nil); err != nil {
+		t.Fatalf("fetchSegment: %v", err)
+	}
+	if firstStart != done {
+		t.Fatalf("first request starts at %d, want %d", firstStart, done)
+	}
+	content, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(content[done:], payload[done:]) {
+		t.Fatal("resumed content mismatch")
+	}
+}
+
 func TestTransferPauseThenResume(t *testing.T) {
 	payload := make([]byte, 512*1024)
 	for index := range payload {
