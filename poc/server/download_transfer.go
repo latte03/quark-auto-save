@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+
+	"qas-poc/quark"
 )
 
 type transferResult int
@@ -52,6 +54,15 @@ func (q *downloadQueue) transfer(job *downloadJob, ctx context.Context, item dow
 
 	links, cookies, err := job.Client.Download([]string{item.FID})
 	if err != nil {
+		// A fid that the drive no longer knows is a stale queue entry, not a
+		// transfer failure: unpacking or a manual delete can replace a file
+		// after the job was built. Counting it as failed made a healthy task
+		// look broken in the UI.
+		if isGoneInCloud(err) {
+			job.addSkipped()
+			q.logf("⤵ 云端条目已不存在，跳过 %s: %v", rel, err)
+			return transferSkipped
+		}
 		job.addFailed(fmt.Sprintf("获取下载地址失败: %v", err))
 		q.logf("✗ %s：获取下载地址失败: %v", rel, err)
 		return transferFailed
@@ -171,6 +182,17 @@ func (q *downloadQueue) logf(format string, args ...any) {
 	if q.logger != nil {
 		q.logger.Printf(format, args...)
 	}
+}
+
+// isGoneInCloud reports the Quark answer for a fid that no longer exists
+// (code 21001 / HTTP 404), which is what a queue entry looks like once the file
+// it points at was replaced or removed.
+func isGoneInCloud(err error) bool {
+	var apiErr *quark.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == 21001 || apiErr.Status == http.StatusNotFound
+	}
+	return false
 }
 
 // progressReader reports bytes as the copy loop consumes them.

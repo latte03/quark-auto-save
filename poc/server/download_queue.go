@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -109,6 +110,14 @@ func newDownloadQueue(logger *log.Logger) *downloadQueue {
 
 func (q *downloadQueue) Enqueue(job *downloadJob) string {
 	q.mu.Lock()
+	// A second run of the same task while its batch is still waiting would
+	// otherwise show up as its own job and race the first one for the same
+	// files; fold the new items into the queued batch instead.
+	if existing := q.queuedJobForLocked(job); existing != nil {
+		q.mu.Unlock()
+		existing.absorb(job.Items)
+		return existing.ID
+	}
 	job.ID = fmt.Sprintf("dl-%d", time.Now().UnixNano())
 	job.status = "queued"
 	job.pendingItems = append([]downloadItem(nil), job.Items...)
@@ -118,6 +127,45 @@ func (q *downloadQueue) Enqueue(job *downloadJob) string {
 	job.inQueue.Store(true)
 	q.queue <- job
 	return job.ID
+}
+
+// queuedJobForLocked returns the not-yet-started job of the same task and root
+// that new items should join. The caller holds q.mu.
+func (q *downloadQueue) queuedJobForLocked(job *downloadJob) *downloadJob {
+	for _, id := range q.order {
+		existing, ok := q.jobs[id]
+		if !ok || existing.TaskName != job.TaskName || existing.Root != job.Root {
+			continue
+		}
+		if existing.currentStatus() != "queued" {
+			continue
+		}
+		return existing
+	}
+	return nil
+}
+
+// absorb appends the items of a follow-up run to a job that has not started
+// yet, so one task keeps one batch in the UI.
+func (j *downloadJob) absorb(items []downloadItem) {
+	if len(items) == 0 {
+		return
+	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.Items = append(j.Items, items...)
+	j.pendingItems = append(j.pendingItems, items...)
+	if j.TotalBytes <= 0 {
+		return
+	}
+	// Byte totals only make sense while every item carries its size.
+	for _, item := range items {
+		if item.Size <= 0 {
+			j.TotalBytes = 0
+			return
+		}
+		j.TotalBytes += item.Size
+	}
 }
 
 func (q *downloadQueue) get(id string) *downloadJob {
@@ -539,6 +587,12 @@ func (q *downloadQueue) run(job *downloadJob) {
 func (q *downloadQueue) prepare(job *downloadJob) string {
 	if message := localRootValidator(job.Root); message != "" {
 		return message
+	}
+	// A folder the user has not created yet is not a reason to fail a job whose
+	// files are already saved in the drive: the transfer creates subfolders
+	// itself, so create the root too instead of dropping the whole batch.
+	if err := os.MkdirAll(job.Root, 0o755); err != nil {
+		return fmt.Sprintf("创建下载目录失败: %v", err)
 	}
 	if check := checkLocalDir(job.Root); !check.OK {
 		return check.Message

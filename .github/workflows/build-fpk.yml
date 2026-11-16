@@ -51,6 +51,8 @@ jobs:
         id: package
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
+          # Frontend was built in the step above; build.sh would rebuild it.
+          QAS_SKIP_WEB: "1"
         run: |
           ./poc/fnos/build.sh
           version="$(sed -n 's/^version=//p' poc/fnos/manifest)"

@@ -241,7 +241,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 					failedTasks++
 					continue
 				}
-				queued, count := s.enqueueTaskDownload(task, nil, snapshot.Download, client, logf, onDownloadDone)
+				queued, count := s.enqueueTaskDownload(task, nil, snapshot, client, logf, onDownloadDone)
 				stats[task.TaskName] = count
 				saved += count
 				if !counted && run.HasErrorSince(markerLine) {
@@ -290,7 +290,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 			// files from earlier runs.
 			queued := false
 			if write {
-				queued, _ = s.enqueueTaskDownload(task, nil, snapshot.Download, client, logf, onDownloadDone)
+				queued, _ = s.enqueueTaskDownload(task, nil, snapshot, client, logf, onDownloadDone)
 			}
 			if !counted && run.HasErrorSince(markerLine) {
 				// pipeline 容错继续了（转存失败兜底、目录缺失），但任务没转成。
@@ -317,7 +317,7 @@ func (s *Server) executeRun(run *Run, spec runSpec) error {
 				HTTP:        pluginHTTP,
 			})
 		}
-		queued, _ := s.enqueueTaskDownload(task, tree, snapshot.Download, client, logf, onDownloadDone)
+		queued, _ := s.enqueueTaskDownload(task, tree, snapshot, client, logf, onDownloadDone)
 		if !counted && run.HasErrorSince(markerLine) {
 			failedTasks++
 		}

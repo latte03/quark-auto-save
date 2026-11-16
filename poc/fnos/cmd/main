@@ -19,6 +19,10 @@ start() {
     printf '{}\n' > "$CONFIG"
   fi
   cd "$APP_DIR" || exit 1
+  # A package built on Windows carries no exec bits (NTFS has none, so fnpack
+  # stores 0666). This script runs as root, so restore the bit before the first
+  # exec instead of leaving a service that cannot start.
+  chmod +x "$BIN" 2>/dev/null || true
   nohup "$BIN" serve \
     -config "$CONFIG" \
     -data "$DATA" \

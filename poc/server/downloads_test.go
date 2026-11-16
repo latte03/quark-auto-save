@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -98,7 +100,7 @@ func TestCollectDownloadItems(t *testing.T) {
 	tree.Add(root, "planned.mkv", "fid-3", quark.NodeData{Path: "/影视/黑镜/planned.mkv", FileNameRe: "planned.mkv", Planned: true})
 
 	task := &quark.Task{SavePath: "/影视/黑镜"}
-	items := collectDownloadItems(tree, task)
+	items := collectDownloadItems(tree, task, nil)
 	if len(items) != 2 {
 		t.Fatalf("items = %d, want 2: %+v", len(items), items)
 	}
@@ -243,6 +245,79 @@ func TestLocalFileExists(t *testing.T) {
 	}
 	if localFileExists(root, "missing.mkv") {
 		t.Fatal("missing file reported as present")
+	}
+}
+
+func TestCollectDownloadItemsSkipsConsumedAndUnpackedArchives(t *testing.T) {
+	tree := quark.NewTree()
+	root := tree.Root()
+	tree.Add(root, "01.mkv", "fid-1", quark.NodeData{Path: "/tv/01.mkv", FileNameRe: "01.mkv", FID: "fid-1"})
+	// Unpacked and cleaned: the fid no longer exists in the drive.
+	tree.Add(root, "02.zip", "zip-2", quark.NodeData{Path: "/tv/02.zip", FileNameRe: "02.zip", FID: "zip-2", Consumed: true})
+	tree.Add(root, "03.zip", "zip-3", quark.NodeData{Path: "/tv/03.zip", FileNameRe: "03.zip", FID: "zip-3"})
+
+	unpacking := &quark.Task{SavePath: "/tv", Addition: json.RawMessage(`{"auto_unarchive":{"enable":true}}`)}
+	items := collectDownloadItems(tree, unpacking, nil)
+	if len(items) != 1 || items[0].RelPath != "01.mkv" {
+		t.Fatalf("items = %+v, want only the video", items)
+	}
+
+	// A drive-wide switch (global_enable) has the same effect as the per-task one.
+	items = collectDownloadItems(tree, &quark.Task{SavePath: "/tv"}, json.RawMessage(`{"global_enable":true}`))
+	if len(items) != 1 {
+		t.Fatalf("global enable ignored: %+v", items)
+	}
+
+	// Without the plugin an archive is an ordinary file the user asked for.
+	plain := &quark.Task{SavePath: "/tv"}
+	if got := collectDownloadItems(tree, plain, nil); len(got) != 2 || got[1].RelPath != "03.zip" {
+		t.Fatalf("plain task items = %+v", got)
+	}
+}
+
+func TestEnqueueMergesQueuedJobForSameTask(t *testing.T) {
+	// No worker goroutine: both jobs stay queued, which is the case a second
+	// run of the same task meets.
+	queue := &downloadQueue{jobs: map[string]*downloadJob{}, queue: make(chan *downloadJob, 8)}
+	first := &downloadJob{TaskName: "嫁金钗", Root: "/vol2/tv/嫁金钗"}
+	id := queue.Enqueue(first)
+
+	second := &downloadJob{TaskName: "嫁金钗", Root: "/vol2/tv/嫁金钗", Items: []downloadItem{{RelPath: "02.mkv", FID: "f2"}}}
+	if got := queue.Enqueue(second); got != id {
+		t.Fatalf("second enqueue = %q, want the queued job %q", got, id)
+	}
+	if len(first.Items) != 1 || len(first.pendingItems) != 1 {
+		t.Fatalf("merged items = %d / pending = %d, want 1 / 1", len(first.Items), len(first.pendingItems))
+	}
+
+	other := &downloadJob{TaskName: "嫁金钗", Root: "/vol2/movies/嫁金钗"}
+	if got := queue.Enqueue(other); got == id {
+		t.Fatal("a job for another root must not merge")
+	}
+}
+
+func TestPrepareCreatesMissingRoot(t *testing.T) {
+	original := localRootValidator
+	localRootValidator = func(string) string { return "" }
+	t.Cleanup(func() { localRootValidator = original })
+
+	root := filepath.Join(t.TempDir(), "电视剧", "嫁金钗")
+	queue := &downloadQueue{}
+	job := &downloadJob{TaskName: "嫁金钗", Root: root}
+	if message := queue.prepare(job); message != "" {
+		t.Fatalf("prepare = %q, want success", message)
+	}
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		t.Fatalf("download root was not created: %v", err)
+	}
+}
+
+func TestIsGoneInCloud(t *testing.T) {
+	if !isGoneInCloud(fmt.Errorf("wrap: %w", &quark.APIError{Code: 21001, Status: 404})) {
+		t.Fatal("code 21001 should count as gone")
+	}
+	if isGoneInCloud(errors.New("network down")) {
+		t.Fatal("a plain error must not be treated as a missing file")
 	}
 }
 

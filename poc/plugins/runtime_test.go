@@ -143,7 +143,9 @@ func TestAutoUnarchiveMovesAndCleans(t *testing.T) {
 	if len(account.unarchives) != 1 || account.unarchives[0] != (unarchiveCall{"zip1", "target"}) {
 		t.Fatalf("unarchives = %#v", account.unarchives)
 	}
-	if len(account.renames) != 2 || account.renames[0] != (renameCall{"sub1", "show.zip"}) || account.renames[1] != (renameCall{"x1", "show.mkv"}) {
+	// The file is renamed before the move so the destination can be verified by
+	// name; the emptied extract folder is renamed afterwards as the placeholder.
+	if len(account.renames) != 2 || account.renames[0] != (renameCall{"x1", "show.mkv"}) || account.renames[1] != (renameCall{"sub1", "show.zip"}) {
 		t.Fatalf("renames = %#v", account.renames)
 	}
 	if len(account.moves) != 1 || len(account.moves[0].FIDs) != 1 || account.moves[0].FIDs[0] != "x1" || account.moves[0].To != "target" {

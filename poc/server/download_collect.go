@@ -1,18 +1,62 @@
 package server
 
 import (
+	"encoding/json"
+	"regexp"
 	"strings"
 
 	"qas-poc/quark"
 )
 
+// reArchiveFile mirrors the auto_unarchive plugin's archive detection. When a
+// task unpacks archives in the cloud, a transferred archive is only a carrier:
+// the payload arrives as a separate file that the cloud diff picks up, so the
+// archive itself must never be queued for the local copy.
+var reArchiveFile = regexp.MustCompile(`(?i)\.(zip|rar|7z)$`)
+
+// taskUnarchives reports whether this task unpacks archives in the cloud. Both
+// switches count: the per-task one (filled in by MergePluginDefaults) and the
+// global one, which is how a drive-wide setup turns the plugin on without
+// touching every task.
+func taskUnarchives(task *quark.Task, global json.RawMessage) bool {
+	if task != nil && sectionSwitch(task.AdditionSection("auto_unarchive"), "enable") {
+		return true
+	}
+	return sectionSwitch(global, "global_enable")
+}
+
+// sectionSwitch reads one JSON switch that may be written as a bool, a number
+// or a string ("global_enable" is hand-edited in some setups).
+func sectionSwitch(section json.RawMessage, key string) bool {
+	if len(section) == 0 {
+		return false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(section, &fields); err != nil {
+		return false
+	}
+	value := strings.Trim(strings.TrimSpace(string(fields[key])), `"`)
+	switch strings.ToLower(value) {
+	case "true", "1", "on", "yes":
+		return true
+	}
+	return false
+}
+
 // collectDownloadItems turns saved tree leaves into local download items,
-// keeping paths relative to the task's save root.
-func collectDownloadItems(tree *quark.Tree, task *quark.Task) []downloadItem {
+// keeping paths relative to the task's save root. globalUnarchive is the
+// plugins.auto_unarchive config section, or nil.
+func collectDownloadItems(tree *quark.Tree, task *quark.Task, globalUnarchive json.RawMessage) []downloadItem {
 	prefix := strings.TrimSuffix(strings.TrimSpace(task.SavePath), "/")
+	skipArchive := taskUnarchives(task, globalUnarchive)
 	var items []downloadItem
 	tree.Walk(func(node *quark.TreeNode, isRoot bool) {
-		if isRoot || node.Data.IsDir || node.Data.Planned || node.Data.FID == "" {
+		// Consumed entries were already replaced by unpacked files: their fids
+		// are gone from the drive and would only fail the transfer with 404.
+		if isRoot || node.Data.IsDir || node.Data.Planned || node.Data.Consumed || node.Data.FID == "" {
+			return
+		}
+		if skipArchive && reArchiveFile.MatchString(node.Name) {
 			return
 		}
 		rel := node.Data.Path
@@ -117,8 +161,10 @@ func (s *Server) collectMissingDownloads(client *quark.Client, task *quark.Task,
 // enqueueTaskDownload queues the run's new files plus any cloud files that
 // are still missing locally. It reports whether a job was created and how
 // many files were queued; onFinish runs when that job reaches a terminal
-// status.
-func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, settings localDownloadSettings, client *quark.Client, logf func(string, ...any), onFinish func(status string)) (bool, int) {
+// status. The snapshot carries both the download settings and the plugin
+// config, which decides whether transferred archives are carriers only.
+func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, snapshot Snapshot, client *quark.Client, logf func(string, ...any), onFinish func(status string)) (bool, int) {
+	settings := snapshot.Download
 	if task.LocalDownload == nil || !task.LocalDownload.Enable {
 		return false, 0
 	}
@@ -137,7 +183,7 @@ func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, setting
 	overwrite := task.LocalDownload.Overwrite
 	var items []downloadItem
 	if tree != nil {
-		items = collectDownloadItems(tree, task)
+		items = collectDownloadItems(tree, task, snapshot.Plugins["auto_unarchive"])
 	}
 	// The cloud diff above only sees this run's transfers. Comparing the
 	// whole save path with local files also repairs gaps left by earlier

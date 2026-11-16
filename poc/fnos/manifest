@@ -1,5 +1,5 @@
 appname=qas
-version=0.4.2
+version=0.4.3
 display_name=QAS 控制台
 desc=自托管夸克自动转存控制台（Go + React）。
 source=thirdparty
@@ -15,4 +15,4 @@ desktop_applaunchname=qas.main
 service_port=8710
 checkport=true
 ctl_stop=true
-changelog=界面焕新：应用改为悬浮岛布局（内容面板圆角悬浮、侧边栏浅色融合底色），顶部工具条与设置页保存条改为悬浮圆角条；侧边栏图标升级为真实路径变形动画（激活时形状拉长/压扁/游走后归位），并支持拖拽侧边缘调整宽度；任务菜单补齐图标；界面细节打磨。
+changelog=下载与解压修复：云端解压后已清理的压缩包不再进入本地下载队列（此前会拿失效 fid 求下载地址、报 404 file not found 并在界面显示失败）；云端已不存在的条目改为按跳过处理；同一任务连续运行会合并进同一批下载，不再叠出多个任务；下载目录不存在时自动创建而不是整批失败；解压改为轮询等待并核对目标目录后再清理，避免夸克延迟返回导致整集丢失。

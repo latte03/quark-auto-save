@@ -621,19 +621,28 @@ func (c *Client) Download(fids []string) ([]DownloadItem, string, error) {
 	return items, strings.Join(parts, "; "), nil
 }
 
+// moveBatch is the largest file list one /file/move call carries; bigger calls
+// are rejected or answered with a partial result, which silently drops files.
+const moveBatch = 100
+
+// MoveFiles moves fids in batches and reports the first batch that failed, so a
+// caller can keep the source until the whole move is confirmed.
 func (c *Client) MoveFiles(fids []string, toPdirFID string) error {
 	params := url.Values{"pr": {"ucpro"}, "fr": {"pc"}, "uc_param_str": {""}}
-	env, raw, err := c.request(http.MethodPost, c.baseURL+"/1/clouddrive/file/move", params, map[string]any{
-		"filelist":     fids,
-		"to_pdir_fid":  toPdirFID,
-		"exclude_fids": []string{},
-		"action_type":  1,
-	})
-	if err != nil {
-		return err
-	}
-	if env.Code != 0 {
-		return apiErr("move", env, raw)
+	for start := 0; start < len(fids); start += moveBatch {
+		end := min(start+moveBatch, len(fids))
+		env, raw, err := c.request(http.MethodPost, c.baseURL+"/1/clouddrive/file/move", params, map[string]any{
+			"filelist":     fids[start:end],
+			"to_pdir_fid":  toPdirFID,
+			"exclude_fids": []string{},
+			"action_type":  1,
+		})
+		if err != nil {
+			return fmt.Errorf("移动第 %d-%d 个文件: %w", start+1, end, err)
+		}
+		if env.Code != 0 {
+			return fmt.Errorf("移动第 %d-%d 个文件: %w", start+1, end, apiErr("move", env, raw))
+		}
 	}
 	return nil
 }

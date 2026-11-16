@@ -33,6 +33,10 @@ type NodeData struct {
 	Path        string
 	ObjCategory string
 	Planned     bool
+	// Consumed marks an entry a plugin already turned into other files, such
+	// as an archive that was unpacked and then cleaned up: its FID no longer
+	// exists in the drive, so nothing may try to download it.
+	Consumed bool
 }
 
 type TreeNode struct {
