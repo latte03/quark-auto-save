@@ -588,6 +588,11 @@ func (q *downloadQueue) prepare(job *downloadJob) string {
 	if message := localRootValidator(job.Root); message != "" {
 		return message
 	}
+	// Creating a missing folder must not fake a storage space: when /vol2 is
+	// not mounted, MkdirAll would put the whole download on the system disk.
+	if message := checkStorageMounted(job.Root); message != "" {
+		return message
+	}
 	// A folder the user has not created yet is not a reason to fail a job whose
 	// files are already saved in the drive: the transfer creates subfolders
 	// itself, so create the root too instead of dropping the whole batch.

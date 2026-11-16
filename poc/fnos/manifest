@@ -1,5 +1,5 @@
 appname=qas
-version=0.4.3
+version=0.4.4
 display_name=QAS 控制台
 desc=自托管夸克自动转存控制台（Go + React）。
 source=thirdparty
@@ -15,4 +15,4 @@ desktop_applaunchname=qas.main
 service_port=8710
 checkport=true
 ctl_stop=true
-changelog=下载与解压修复：云端解压后已清理的压缩包不再进入本地下载队列（此前会拿失效 fid 求下载地址、报 404 file not found 并在界面显示失败）；云端已不存在的条目改为按跳过处理；同一任务连续运行会合并进同一批下载，不再叠出多个任务；下载目录不存在时自动创建而不是整批失败；解压改为轮询等待并核对目标目录后再清理，避免夸克延迟返回导致整集丢失。
+changelog=存储空间挂载校验：下载目录位于 /volN 但该存储空间当前未挂载时直接报错停止，不再把几十 G 的下载悄悄建到系统盘上（否则会写满根分区，空间挂回来后又像文件消失）；设置页的目录校验会直接显示「存储空间未挂载」；下载过程中存储空间掉线也会立即中止该批次。

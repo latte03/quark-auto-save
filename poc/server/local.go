@@ -84,6 +84,11 @@ func (s *Server) handleLocalValidate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": check})
 		return
 	}
+	if message := checkStorageMounted(path); message != "" {
+		check.Message = message
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": check})
+		return
+	}
 	check = checkLocalDir(path)
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": check})
 }

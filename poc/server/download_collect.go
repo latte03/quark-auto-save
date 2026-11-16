@@ -180,6 +180,10 @@ func (s *Server) enqueueTaskDownload(task *quark.Task, tree *quark.Tree, snapsho
 		logf("✗ 本地下载目录无效：%s", message)
 		return false, 0
 	}
+	if message := checkStorageMounted(root); message != "" {
+		logf("✗ 本地下载目录不可用：%s", message)
+		return false, 0
+	}
 	overwrite := task.LocalDownload.Overwrite
 	var items []downloadItem
 	if tree != nil {

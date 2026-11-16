@@ -40,6 +40,14 @@ func (q *downloadQueue) transfer(job *downloadJob, ctx context.Context, item dow
 		job.addSkipped()
 		return transferSkipped
 	}
+	// A space that gets unmounted while the job runs would send the rest of the
+	// batch to the system disk; stopping here keeps the partial files on the
+	// real storage space.
+	if message := checkStorageMounted(job.Root); message != "" {
+		job.fail(message)
+		q.logf("✗ %s：%s", rel, message)
+		return transferFailed
+	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		job.addFailed(fmt.Sprintf("创建目录失败: %v", err))
 		return transferFailed
